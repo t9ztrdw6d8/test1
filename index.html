@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM96 · Klimatisatie — Webapp</title>
+<style>
+  :root{
+    --bg:#090b11;--panel:#0e121b;--card:#121724;--card-hi:#161c2b;
+    --line:#1e2533;--line-hi:#2b3445;
+    --txt:#e7eaf1;--muted:#7c869c;--muted-2:#525c72;--faint:#394150;
+    --accent:#3b82f6;--accent-soft:#1d2740;--accent-bright:#60a5fa;
+    --ok:#22c55e;--ok-soft:#10301c;--bad:#ef4444;--bad-soft:#3a1414;--warn:#f5a623;
+    --mono:"JetBrains Mono","SFMono-Regular",ui-monospace,"Roboto Mono","DejaVu Sans Mono",Menlo,Consolas,monospace;}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(1200px 600px at 85% -10%,#0f1626 0%,transparent 60%),var(--bg);
+    color:var(--txt);font-family:var(--mono);-webkit-font-smoothing:antialiased;min-height:100vh;padding:0 0 56px}
+  .wrap{max-width:1320px;margin:0 auto;padding:0 18px}
+  header.bar{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,rgba(9,11,17,.96),rgba(9,11,17,.8));
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:1320px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .brand b{font-size:14px;letter-spacing:.16em;display:block}
+  .brand span{font-size:10px;color:var(--muted);letter-spacing:.2em;text-transform:uppercase}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;
+    border:1px solid var(--bad);color:var(--bad);background:var(--bad-soft);
+    font-size:11px;letter-spacing:.16em;font-weight:600;text-transform:uppercase}
+  .pill.on{color:var(--ok);border-color:var(--ok);background:var(--ok-soft)}
+  .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+  .pill.on .dot{animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)}70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+  button.btn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--txt);background:var(--card-hi);border:1px solid var(--line-hi);padding:9px 14px;border-radius:8px;transition:.15s}
+  button.btn:hover{border-color:var(--accent);color:var(--accent-bright)}
+  button.btn.primary{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-bright)}
+  button.btn.danger:hover{border-color:var(--bad);color:#ff8585}
+  button.btn:disabled{opacity:.4}
+  section{margin-top:30px}
+  .sec-head{display:flex;align-items:center;gap:11px;margin:0 0 15px}
+  .sec-head svg{width:17px;height:17px;color:var(--accent-bright);flex:none}
+  .sec-head h2{margin:0;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+  .sec-head .meta{margin-left:auto;font-size:10px;color:var(--muted-2);letter-spacing:.1em}
+  .grid{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .card{background:var(--card);padding:18px 18px 16px;transition:background .15s}
+  .card:hover{background:var(--card-hi)}
+  .card .lbl{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+  .card .val{display:flex;align-items:baseline;gap:7px;margin-top:13px;min-height:38px}
+  .card .num{font-size:30px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .card .num.empty{font-size:0}
+  .card .num.empty::before{content:"";display:inline-block;width:28px;height:4px;border-radius:2px;
+    background:var(--accent);opacity:.85;transform:translateY(-8px)}
+  .card .unit{font-size:12px;color:var(--muted-2);letter-spacing:.06em}
+  .card .sub{font-size:11px;color:var(--muted-2);letter-spacing:.04em;margin-top:3px;min-height:14px}
+  .card.warm .num{color:#ffcf8b}.card.cold .num{color:var(--accent-bright)}
+  .card.flash{animation:flash .6s}
+  @keyframes flash{0%{background:var(--accent-soft)}100%{background:var(--card)}}
+  .chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px}
+  .chip{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+  .chip .cd{width:9px;height:9px;border-radius:50%;background:var(--muted-2);flex:none}
+  .chip .cn{font-size:11px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;line-height:1.25}
+  .chip .cs{margin-left:auto;font-size:9.5px;letter-spacing:.12em;color:var(--muted-2);font-weight:600}
+  .chip.on{border-color:var(--ok)}
+  .chip.on .cd{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .chip.on .cn{color:var(--txt)}.chip.on .cs{color:var(--ok)}
+  .faults{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .frow{display:grid;grid-template-columns:70px 1fr auto;gap:14px;align-items:center;
+    padding:13px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+  .frow:last-child{border-bottom:0}
+  .frow .code{font-weight:600;color:var(--accent-bright);font-size:13px}
+  .frow .desc{font-size:13px}
+  .frow .desc small{display:block;color:var(--muted-2);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
+  .frow .right{text-align:right;font-size:11px;color:var(--muted);white-space:nowrap}
+  .frow .prio{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:9px;vertical-align:middle}
+  .prio.A{background:var(--bad)}.prio.C{background:var(--warn)}.prio.O{background:var(--muted-2)}
+  .frow.none{opacity:.5}.frow.none .code{color:var(--muted)}.frow.none .right{color:var(--muted-2)}
+  .empty-state{padding:28px 16px;color:var(--muted-2);font-size:12px;letter-spacing:.05em;text-align:center;background:var(--card)}
+  .cmd-block{margin-bottom:16px}
+  .cmd-block h3{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-2);margin:0 0 9px}
+  .cmd-row{display:flex;flex-wrap:wrap;gap:8px}
+  .cmd{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--txt);background:var(--card);
+    border:1px solid var(--line-hi);border-radius:8px;padding:9px 13px;cursor:pointer;transition:.15s;text-align:left}
+  .cmd:hover{border-color:var(--accent);color:var(--accent-bright)}
+  .cmd small{display:block;color:var(--muted-2);font-size:9px;letter-spacing:.06em;margin-top:2px;text-transform:uppercase}
+  .cmd.warn{border-color:#3a2f12}.cmd.warn:hover{border-color:var(--warn);color:#ffce7a}
+  .cmd.warn.on{border-color:var(--warn);color:#ffd591;background:#2a200c;animation:testpulse 1.8s infinite}
+  .cmd.warn.on small{color:#caa05a}
+  .cmd.warn.on small::after{content:" · ACTIEF";color:var(--warn);font-weight:600}
+  @keyframes testpulse{0%{box-shadow:0 0 0 1px var(--warn),0 0 9px rgba(245,166,35,.25)}
+    50%{box-shadow:0 0 0 1px var(--warn),0 0 20px rgba(245,166,35,.6)}
+    100%{box-shadow:0 0 0 1px var(--warn),0 0 9px rgba(245,166,35,.25)}}
+  .warnline{font-size:10px;color:var(--warn);letter-spacing:.05em;margin:0 0 9px;opacity:.85}
+  .term{display:flex;gap:8px}
+  .term input{flex:1;font-family:var(--mono);font-size:12px;background:var(--card);color:var(--txt);
+    border:1px solid var(--line-hi);border-radius:8px;padding:9px 12px;outline:none}
+  .term input:focus{border-color:var(--accent)}
+  .tlog{margin-top:10px;background:#0a0d14;border:1px solid var(--line);border-radius:9px;padding:12px;
+    font-size:11px;color:var(--muted);max-height:170px;overflow:auto;white-space:pre-wrap;line-height:1.55}
+  #tlog:empty{display:none}
+  .rawlog{color:#86b89a;height:260px;background:#0a0d14;border:1px solid var(--line);border-radius:9px;padding:12px;
+    font-size:11px;overflow:auto;white-space:pre-wrap;line-height:1.55;margin-top:10px}
+  .rawclear{float:right;font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted-2);background:transparent;border:1px solid var(--line-hi);border-radius:6px;padding:3px 9px;cursor:pointer}
+  .rawclear:hover{color:var(--txt);border-color:var(--accent)}
+  .note{margin-top:16px;font-size:11.5px;color:var(--muted-2);letter-spacing:.03em;line-height:1.6}
+  .note b{color:var(--muted)}
+  @media(max-width:520px){.card .num{font-size:27px}.brand b{font-size:13px}}
+  @media(min-width:768px){
+    .wrap{padding:0 28px}.bar-in{padding:18px 28px;gap:14px}
+    .brand b{font-size:16px}.brand span{font-size:11px}
+    .pill{font-size:12px;padding:9px 16px}
+    button.btn{font-size:12px;padding:12px 20px}
+    section{margin-top:38px}.sec-head h2{font-size:14px}
+    .grid{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+    .card{padding:24px 24px 22px}.card .lbl{font-size:12px}.card .num{font-size:36px}.card .unit{font-size:14px}
+    .chips{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+    .chip{padding:13px 15px}.chip .cn{font-size:12px}
+    .cmd{font-size:12px;padding:12px 16px}.cmd small{font-size:10px}
+    .term input{font-size:14px;padding:12px 15px}
+    .tlog{font-size:12px;max-height:220px}.rawlog{font-size:12.5px;height:340px}
+    .frow{padding:16px 20px;gap:18px}.frow .desc{font-size:14px}
+  }
+  @media(min-width:1100px){.grid{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}.card .num{font-size:38px}}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <div class="brand"><b>AM96 · KLIMATISATIE</b><span>BK5030 diagnose</span></div>
+  <div class="spacer"></div>
+  <div id="pill" class="pill"><span class="dot"></span><span id="pillTxt">Verbroken</span></div>
+  <button id="btnConnect" class="btn primary">Verbinden</button>
+  <button id="btnFaults" class="btn">Storingen</button>
+  <button id="btnErase" class="btn danger">Wissen</button>
+  <button id="btnDemo" class="btn">Demo</button>
+</div></header>
+<div class="wrap">
+  <section>
+    <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13.5V5a2 2 0 1 1 4 0v8.5a4 4 0 1 1-4 0Z"/><path d="M12 15.5v-6"/></svg>
+      <h2>Temperatuurmetingen</h2><span class="meta" id="lastUpdate">— geen data —</span></div>
+    <div class="grid" id="tempGrid"></div>
+  </section>
+  <section>
+    <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
+      <h2>Digitale uitgangen</h2><span class="meta" id="digMeta"></span></div>
+    <div class="chips" id="digGrid"></div>
+  </section>
+  <section>
+    <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <h2>Storingsgeheugen</h2><span class="meta" id="faultMeta"></span></div>
+    <div class="faults" id="faultList"><div class="empty-state">Druk op <b>Storingen</b> om het diagnosegeheugen uit te lezen.</div></div>
+  </section>
+  <section>
+    <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h10M4 12h7M4 18h13"/><circle cx="18" cy="6" r="2"/><circle cx="15" cy="12" r="2"/></svg>
+      <h2>Bediening</h2></div>
+    <div class="cmd-block"><h3>Uitlezen</h3><div class="cmd-row" id="readRow"></div></div>
+    <div class="cmd-block"><h3>Setpoint binnentemperatuur</h3><div class="cmd-row" id="setpRow"></div></div>
+    <div class="cmd-block"><h3>Testroutines — forceren</h3>
+      <p class="warnline">Let op: deze routines sturen echte compressoren/verwarming aan. Met bevestiging.</p>
+      <div class="cmd-row" id="testRow"></div></div>
+    <div class="cmd-block"><h3>Terminal</h3>
+      <div class="term"><input id="termIn" placeholder="commando, bv. crd of S" autocapitalize="off" autocomplete="off" spellcheck="false">
+        <button class="btn" id="termSend">Stuur</button></div>
+      <div class="tlog" id="tlog"></div></div>
+    <div class="cmd-block">
+      <h3>Ruwe data<button class="rawclear" id="rawClear">wis</button><button class="rawclear" id="rawSave" style="margin-right:6px">bewaar</button></h3>
+      <div class="rawlog" id="rawlog"></div></div>
+  </section>
+  <p class="note" id="note">Verbind de USB-serieel adapter en druk op <b>Verbinden</b>.</p>
+</div>
+<script>
+const TEMP_CARDS=[["Buitenlucht","°C",1,"cold"],["T. Menglucht","°C",2,""],["T. Behandeld","°C",4,""],
+ ["T. Verdamper","°C",3,"cold"],["T. Recyclucht","°C",6,""],["T. Interieur 1","°C",7,""],["T. Interieur 2","°C",8,""],
+ ["T. Chefzone","°C",9,""],["T. DC binnen","°C",12,""],["T. DC behandeld","°C",10,""],["T. Energiebeh.","°C",5,"warm"],
+ ["Freon LD","bar",13,""],["Freon HD","bar",14,""]];
+const DIG_LABELS=["Verwarming 1","Vent. clima","Verwarming 2","Compressor 1","Vent. extractie","Compressor 2",
+ "Luchtklep P1","Luchtklep P2","Freon vloeistof","Bev. verwarming","Condensor 1","Freon bypass","Compr1 bev.lijn",
+ "Condensor 2","Compr2 bev.lijn","Bev.lijn 1 compr","Bev.lijn 2 compr","Freon vloeistof 2","Extractie","Rem (KB)",
+ "Ontdooien","380V (KS)","Bev. verwarming 2","Compr.blok (KA)","Buiten < 5°C","Overtemp verw.","Energie neven/red."];
+const FAULT_CODES={"00201":"Board A1","00202":"Board A2","00203":"Board A3","00210":"Extern unit DCDC","00211":"Extern unit DCTC",
+ "00212":"Extern unit DCTA1","00213":"Extern unit DCTA2","00214":"Extern unit DCTH","00215":"Extern unit DCTP","00248":"External link fault",
+ "00250":"Clima/trafo cir.br.","00254":"Air flow clima fan","00255":"DC air flow sensor","00282":"Heater 1/2 over temp.","00283":"Heater security line",
+ "00285":"DC over temp/cir.br.","00311":"Compr1 sec. line coil","00313":"Compr1 sec. li.cir.br.","00314":"Compr sec.line lo.pr","00315":"Compr sec.line hi.pr",
+ "00320":"Compr2 sec.line coil","00321":"Compr2 sec.li.cir.br","00350":"Fresh air sen. BCAF","00351":"Mix air sensor BCAM","00352":"Recycle air sen. BCAR",
+ "00353":"Treated air sen. BCAT","00354":"Evap. air sen. (DCTC)","00355":"Energy man.sen. BCDS","00357":"Inside sensor BCRP","00358":"Setpoint selec. SCPC2",
+ "00359":"Inside sensor BCTA1","00360":"Freon lo.pr.sen. BCPB","00361":"Freon hi.pr.sen. BCPH","00362":"Inside sensor BCTA2","00363":"Inside sensor BCCT",
+ "00364":"Treated air (DCTP)","00401":"COMPR_1 looptijd","00402":"COMPR_2 looptijd","00403":"HEATER_1 looptijd","00404":"HEATER_2 looptijd",
+ "00405":"COND_1 looptijd","00406":"COND_2 looptijd","00407":"DC_HEATER looptijd","00408":"MAIN HEATER > 80°C","00409":"FREON almost high pr",
+ "00410":"FREON almost low pre","00720":"Comfort fault (3-5h)","00888":"Operation time"};
+const READS=[["cvn","Rijtuignr"],["crd","Constanten"],["I","Software-info"],["__resume","Live hervatten"]];
+const SETP=[["cminus01","−0,1 °C"],["czero","Terug op 0"],["cplus01","+0,1 °C"]];
+const TESTS=[["Verwarming 30%","HEATING30","60 min"],["Verwarming 60%","HEATING60","60 min"],["Koeling 100%","COOLING100","60 min"],
+ ["Ventilatie laag","FANS_LOW","60 min"],["Ventilatie hoog","FANS_HIGH","60 min"],["Recyclelucht 28%","REC45","60 min"],
+ ["Recyclelucht 56%","REC55","60 min"],["Kanaalregeling","REGELN","500 min"],["Vloeistofventiel","LIQUID","500 min"],["Bypassventiel","BYPASS","500 min"]];
+
+const NATIVE=(typeof AndroidBridge!=='undefined');
+const tempGrid=document.getElementById('tempGrid');
+const cardEls=TEMP_CARDS.map(([lbl,unit,idx,cls])=>{const c=document.createElement('div');c.className='card '+cls;
+ const isP=unit==='hPa';
+ c.innerHTML='<div class="lbl">'+lbl+'</div><div class="val"><span class="num empty"></span><span class="unit">'+unit+'</span></div>'+(isP?'<div class="sub"></div>':'');
+ tempGrid.appendChild(c);return {el:c,num:c.querySelector('.num'),sub:c.querySelector('.sub'),unit,idx};});
+const digGrid=document.getElementById('digGrid');
+const chipEls=DIG_LABELS.map(name=>{const c=document.createElement('div');c.className='chip';
+ c.innerHTML='<span class="cd"></span><span class="cn">'+name+'</span><span class="cs">UIT</span>';
+ digGrid.appendChild(c);return c;});
+document.getElementById('digMeta').textContent=DIG_LABELS.length+' uitgangen';
+
+function setTemp(i,v){const c=cardEls[i];if(v==null||isNaN(v)){c.num.className='num empty';c.num.textContent='';if(c.sub)c.sub.textContent='';return;}
+ c.num.className='num';c.num.textContent=(Math.round(v*10)/10).toFixed(1);
+ if(c.sub)c.sub.textContent='≈ '+(v/1000).toFixed(2).replace('.',',')+' bar';
+ c.el.classList.remove('flash');void c.el.offsetWidth;c.el.classList.add('flash');}
+function setDigital(bits){chipEls.forEach((c,i)=>{const on=bits&&bits[i]==='1';
+ c.classList.toggle('on',!!on);c.querySelector('.cs').textContent=on?'AAN':'UIT';});}
+function setStatus(on){const p=document.getElementById('pill');p.classList.toggle('on',on);
+ document.getElementById('pillTxt').textContent=on?'Verbonden':'Verbroken';}
+function stamp(t){document.getElementById('lastUpdate').textContent=(t||'')+' · live';}
+function note(t){document.getElementById('note').innerHTML='<b>Status:</b> '+t;}
+function logLine(t){const el=document.getElementById('tlog');el.textContent+=(el.textContent?'\n':'')+t;el.scrollTop=el.scrollHeight;}
+const RAW_MAX=400;
+function rawLine(t){const el=document.getElementById('rawlog');const n=new Date();
+ const ts=n.toLocaleTimeString('nl-BE')+'.'+String(n.getMilliseconds()).padStart(3,'0');
+ el.textContent+=(el.textContent?'\n':'')+ts+'  '+t;const ls=el.textContent.split('\n');
+ if(ls.length>RAW_MAX)el.textContent=ls.slice(-RAW_MAX).join('\n');el.scrollTop=el.scrollHeight;}
+
+function applyFrame(f){cardEls.forEach((c,i)=>setTemp(i,f.analog?f.analog[c.idx]:null));setDigital(f.digital);stamp(f.time);}
+function renderFaults(list){const box=document.getElementById('faultList');box.className='faults';
+ if(!list.length){box.innerHTML='<div class="empty-state">Geen storingen in het geheugen.</div>';return;}
+ const has=f=>f.count!=null||f.last!=null||f.secs!=null;
+ document.getElementById('faultMeta').textContent=list.filter(has).length+' actief · '+list.length+' codes';
+ const sorted=list.slice().sort((a,b)=>(has(b)?1:0)-(has(a)?1:0));
+ box.innerHTML=sorted.map(f=>{const desc=(f.name&&f.name.length>=3)?f.name:(FAULT_CODES[f.code]||f.name||'—');
+  const n=+f.code;const cat=((n>=401&&n<=410)||n===888)?'bedrijfsteller':'storing';
+  const pr=(f.prio==='A')?'A':(f.prio==='C')?'C':'O';const h=has(f);
+  const right=h?[f.count!=null?f.count+'×':'',f.secs!=null?(f.secs/3600).toFixed(1)+' u':'',f.last||''].filter(Boolean).join(' · '):'geen registratie';
+  return '<div class="frow'+(h?'':' none')+'"><div class="code">'+f.code+'</div><div class="desc">'+desc+'<small>'+cat+'</small></div><div class="right">'+right+(h?'<span class="prio '+pr+'"></span>':'')+'</div></div>';}).join('');}
+
+function normNum(t){t=t.trim();let n=false;if(t.endsWith('-')){n=true;t=t.slice(0,-1);}if(t.startsWith('-')){n=true;t=t.slice(1);}t=t.replace(/\s/g,'').replace(',','.');const v=parseFloat(t);return isNaN(v)?null:(n?-v:v);}
+function parseProcess(raw){const m=raw.match(/(\d{2}:\d{2}:\d{2})(.*)/);if(!m)return null;
+ let rest=m[2];let parts;
+ if(rest.indexOf('_')>=0){parts=rest.replace(/^_/,'').split('_');}
+ else{parts=rest.replace(/\|/g,' ').trim().split(/\s+/);}
+ if(parts.length<2)return null;
+ const digRaw=parts[parts.length-1];
+ const analog=parts.slice(0,-1).map(normNum);
+ const digital=(digRaw.match(/[01]/g)||[]).join('');
+ return {time:m[1],analog:analog,digital:digital||null};}
+function parseFault(raw){const line=raw.trim();if(!line||/Diagnostic Memory/i.test(line))return null;
+ const cm=line.match(/(\d{3,5})\s*:/);if(!cm)return null;const code=cm[1].padStart(5,'0');
+ let after=line.slice(cm.index+cm[0].length);const dm=after.match(/\b\d{6}\b/);
+ let name=(dm?after.slice(0,dm.index):after).replace(/[?h_:\s]+$/,'').trim();
+ const t=(dm?after.slice(dm.index):'').trim().split(/\s+/).filter(Boolean);const isd=x=>/^\d{6}$/.test(x);
+ return {code,name,last:(isd(t[2])&&isd(t[3]))?('20'+t[2].slice(0,2)+'-'+t[2].slice(2,4)+'-'+t[2].slice(4)+' '+t[3].slice(0,2)+':'+t[3].slice(2,4)):null,
+  count:/^\d+$/.test(t[4]||'')?+t[4]:null,secs:/^\d+$/.test(t[5]||'')?+t[5]:null,prio:(t[6]||'').trim()[0]};}
+
+let buf='',collectingFaults=false,faultLines=[];const enc=new TextEncoder();
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let txFn=null;
+function isConnected(){return !!txFn;}
+async function wWrite(s){if(txFn)await txFn(s);}
+function onBytes(arr){buf+=Array.from(arr,b=>String.fromCharCode(b)).join('');
+ let i;while((i=buf.search(/[\r\n]/))>=0){const line=buf.slice(0,i);buf=buf.slice(i+1);webLine(line);}}
+function webLine(raw){const line=raw.trim();if(!line)return;rawLine(line);
+ if(collectingFaults){faultLines.push(line);if(/Diagnostic Memory End/i.test(line)){collectingFaults=false;renderFaults(faultLines.map(parseFault).filter(Boolean));}return;}
+ const f=parseProcess(line);if(f){applyFrame(f);}else{logLine(line);}}
+function webFaults(){if(!isConnected()){note('Verbind eerst.');return;}faultLines=[];collectingFaults=true;wWrite('S');
+ setTimeout(()=>{if(collectingFaults){collectingFaults=false;renderFaults(faultLines.map(parseFault).filter(Boolean));}},8000);}
+function webCmd(c){if(!isConnected()){note('Verbind eerst.');return;}wWrite('\r');setTimeout(()=>wWrite(c),250);}
+function webTest(c){if(!isConnected()){note('Verbind eerst.');return;}wWrite('\r');setTimeout(()=>wWrite('H'),250);setTimeout(()=>wWrite(c),500);}
+function webResume(){if(isConnected())wWrite(' ');}
+async function startStream(){await wWrite('\r');await sleep(400);await wWrite('P');await sleep(600);await wWrite(' ');}
+
+/* ---- Web Serial (desktop Chrome/Edge) ---- */
+let sPort=null,sReader=null,sKeep=false;
+async function serialConnect(){stopDemo();
+ try{sPort=await navigator.serial.requestPort();await sPort.open({baudRate:4800,dataBits:8,parity:'none',stopBits:1,flowControl:'none'});
+  txFn=async(s)=>{const w=sPort.writable.getWriter();await w.write(enc.encode(s));w.releaseLock();};
+  setStatus(true);note('Verbonden (Web Serial). Live-waarden komen binnen…');
+  await startStream();sKeep=true;serialRead();}catch(e){txFn=null;setStatus(false);note('Verbinden mislukt: '+e.message);}}
+async function serialRead(){try{sReader=sPort.readable.getReader();while(sKeep){const{value,done}=await sReader.read();if(done)break;if(value)onBytes(value);}}catch(e){}finally{try{sReader.releaseLock();}catch(e){}}}
+
+/* ---- WebUSB (Android Chrome) — serieel via USB-OTG ---- */
+const USB_FILTERS=[{vendorId:0x10c4},{vendorId:0x1a86},{vendorId:0x0403},{vendorId:0x067b},{classCode:0x02},{classCode:0x0a}];
+let uDev=null,uIf=0,uIn=0,uOut=0,uChip='',uSkip=false,uKeep=false;
+const le32=n=>new Uint8Array([n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255]);
+function vOut(req,val,idx,data){return uDev.controlTransferOut({requestType:'vendor',recipient:'device',request:req,value:val,index:idx},data);}
+function vIf(req,val,idx,data){return uDev.controlTransferOut({requestType:'vendor',recipient:'interface',request:req,value:val,index:idx},data);}
+function cIf(req,val,idx,data){return uDev.controlTransferOut({requestType:'class',recipient:'interface',request:req,value:val,index:idx},data);}
+async function webusbConnect(){stopDemo();
+ if(!navigator.usb){note('WebUSB niet beschikbaar in deze browser.');return;}
+ try{
+  uDev=await navigator.usb.requestDevice({filters:USB_FILTERS});
+  await uDev.open();
+  if(!uDev.configuration)await uDev.selectConfiguration(1);
+  let chosen=null,comm=0;
+  for(const iface of uDev.configuration.interfaces){const alt=iface.alternates[0];
+   if(alt.interfaceClass===2)comm=iface.interfaceNumber;
+   const ins=alt.endpoints.filter(e=>e.direction==='in'&&e.type==='bulk');
+   const outs=alt.endpoints.filter(e=>e.direction==='out'&&e.type==='bulk');
+   if(ins.length&&outs.length&&!chosen){chosen={n:iface.interfaceNumber,in:ins[0].endpointNumber,out:outs[0].endpointNumber};}}
+  if(!chosen){note('Geen seriële (bulk) endpoints op dit USB-apparaat.');return;}
+  uIf=chosen.n;uIn=chosen.in;uOut=chosen.out;
+  try{await uDev.claimInterface(uIf);}catch(e){note('Kan interface niet claimen: '+e.message+' (mogelijk in gebruik door Android).');return;}
+  const vid=uDev.vendorId;uSkip=false;
+  if(vid===0x10c4){uChip='CP210x';await vIf(0x00,0x0001,uIf);await vIf(0x1E,0,uIf,le32(4800));await vIf(0x03,0x0800,uIf);await vIf(0x07,0x0303,uIf);}
+  else if(vid===0x0403){uChip='FTDI';uSkip=true;await vOut(0x00,0x0000,uIf);await vOut(0x03,0x0271,0);await vOut(0x04,0x0008,uIf);await vOut(0x01,0x0303,uIf);}
+  else if(vid===0x1a86){uChip='CH340';await ch340Init();}
+  else{uChip='CDC';const coding=new Uint8Array([0xC0,0x12,0,0,0,0,8]);try{await cIf(0x20,0,comm,coding);await cIf(0x22,0x03,comm);}catch(e){}}
+  txFn=usbWrite;setStatus(true);note('Verbonden via WebUSB ('+uChip+'). Live-waarden komen binnen…');
+  await startStream();uKeep=true;usbRead();
+ }catch(e){txFn=null;setStatus(false);note('WebUSB verbinden mislukt of geannuleerd: '+e.message);}}
+async function ch340Init(){
+ let f=Math.floor(1532620800/4800),d=3;while(f>0xfff0&&d){f=Math.floor(f/8);d--;}
+ f=0x10000-f;const a=(f&0xff00)|d,b=f&0xff;
+ await vOut(0xA1,0xC29C,0xB2B9);await vOut(0x9A,0x1312,a);await vOut(0x9A,0x0F2C,b);
+ await vOut(0x9A,0x2518,0x00C3);await vOut(0x9A,0x2727,0);await vOut(0xA4,0xFF9F,0);}
+async function usbWrite(s){try{await uDev.transferOut(uOut,enc.encode(s));}catch(e){}}
+async function usbRead(){while(uKeep){try{const r=await uDev.transferIn(uIn,64);
+  if(r.data&&r.data.byteLength){let a=new Uint8Array(r.data.buffer,r.data.byteOffset,r.data.byteLength);if(uSkip&&a.length>=2)a=a.slice(2);onBytes(a);}
+ }catch(e){if(uKeep)note('USB-leesfout: '+e.message);break;}}}
+async function doConnect(){
+ if('serial'in navigator)return serialConnect();
+ if(navigator.usb)return webusbConnect();
+ note('Geen Web Serial of WebUSB in deze browser — gebruik Demo, of de native app.');}
+
+let demoTimer=null,demoOn=false;
+const DEMO_BASE=[1,18.6,21.2,5.1,19.4,24.3,22.8,22.1,22.4,21.7,20.3,22.0,21.0,313,1604];
+const DEMO_FAULTS=[{code:"00888",name:"Operation time",last:"2026-05-25 22:06",count:82,secs:2692625,prio:"O"},
+ {code:"00401",name:"COMPR_1 looptijd",last:"2026-05-25 22:07",count:338,secs:302335,prio:"O"},
+ {code:"00405",name:"COND_1 looptijd",last:"2026-05-25 22:07",count:395,secs:346711,prio:"O"},
+ {code:"00255",name:"DC air flow sensor",last:"2026-05-25 22:00",count:7,secs:2795,prio:"C"},
+ {code:"00720",name:"Comfort fault (3-5h)",last:"2026-05-22 14:11",count:3,secs:11400,prio:"A"}];
+function startDemo(){demoOn=true;setStatus(true);note('Demo-modus — voorbeeldwaarden, geen echte regelaar.');
+ function tick(){const vals=DEMO_BASE.map((b,k)=> b==null?null : b+((k>=13)?(Math.random()*16-8):(Math.random()*0.8-0.4)));
+  cardEls.forEach((c,i)=>setTemp(i,vals[c.idx]));
+  const bits=Array.from({length:DIG_LABELS.length},(_,k)=>[3,4,10,12,18].includes(k)?'1':(Math.random()<0.12?'1':'0')).join('');
+  setDigital(bits);stamp(new Date().toLocaleTimeString('nl-BE'));
+  const ct=new Date().toLocaleTimeString('en-GB');
+  const parts=vals.map((v,k)=> v==null?'':(k===0?String(Math.round(v)):v.toFixed(1).replace('.',',')));
+  rawLine(ct+' | '+parts.join(' ')+' '+bits);}
+ tick();demoTimer=setInterval(tick,1500);}
+function stopDemo(){if(demoTimer)clearInterval(demoTimer);demoTimer=null;demoOn=false;}
+
+function sendCmd(c){if(NATIVE)AndroidBridge.cmd(c);else webCmd(c);}
+function resumeLive(){if(NATIVE)AndroidBridge.resume();else webResume();}
+let activeTest=null;
+function sendTest(c,label){
+ if(activeTest===c){if(NATIVE)AndroidBridge.testOff(c);else{webTest(c);onTestState(c,false);}}
+ else{if(NATIVE)AndroidBridge.test(c,label);else{if(confirm('Testroutine '+c+' starten? '+label+' — stuurt echte apparatuur aan.')){webTest(c);onTestState(c,true);}}}}
+function onTestState(c,on){activeTest=on?c:null;
+ document.querySelectorAll('button[data-test]').forEach(b=>b.classList.toggle('on',on&&b.dataset.test===c));}
+window.onTestState=onTestState;
+
+(function buildCmds(){
+ const r=document.getElementById('readRow');
+ READS.forEach(([c,lbl])=>{const b=document.createElement('button');b.className='cmd';
+  b.innerHTML=lbl+'<small>'+(c==='__resume'?'spatie':c)+'</small>';
+  b.onclick=()=> c==='__resume'?resumeLive():sendCmd(c);r.appendChild(b);});
+ const s=document.getElementById('setpRow');
+ SETP.forEach(([c,lbl])=>{const b=document.createElement('button');b.className='cmd';b.innerHTML=lbl+'<small>'+c+'</small>';
+  b.onclick=()=>sendCmd(c);s.appendChild(b);});
+ const t=document.getElementById('testRow');
+ TESTS.forEach(([c,lbl,dur])=>{const b=document.createElement('button');b.className='cmd warn';b.dataset.test=c;b.innerHTML=lbl+'<small>'+c+' · '+dur+'</small>';
+  b.onclick=()=>sendTest(c,lbl+' ('+dur+')');t.appendChild(b);});
+})();
+
+window.onFrame=applyFrame;
+window.onFaults=renderFaults;
+window.onStatus=(b)=>{setStatus(b);note(b?'Verbonden met de regelaar — live-waarden komen binnen…':'Verbinding verbroken.');};
+window.onLog=logLine;window.onRaw=rawLine;window.note=note;
+document.getElementById('btnConnect').onclick=()=>{if(NATIVE)AndroidBridge.connect();else doConnect();};
+document.getElementById('btnFaults').onclick=()=>{if(demoOn){renderFaults(DEMO_FAULTS);return;}if(NATIVE)AndroidBridge.readFaults();else webFaults();};
+document.getElementById('btnErase').onclick=()=>{if(NATIVE)AndroidBridge.erase();else note('Storingen wissen kan alleen in de app, verbonden met de regelaar.');};
+document.getElementById('btnDemo').onclick=()=>{if(demoOn){stopDemo();setStatus(false);note('Demo gestopt.');}else startDemo();};
+document.getElementById('termSend').onclick=()=>{const v=document.getElementById('termIn').value.trim();if(v)sendCmd(v);};
+document.getElementById('termIn').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=e.target.value.trim();if(v)sendCmd(v);}});
+document.getElementById('rawClear').onclick=()=>{document.getElementById('rawlog').textContent='';};
+document.getElementById('rawSave').onclick=()=>{
+ if(NATIVE){AndroidBridge.saveLog();return;}const txt=document.getElementById('rawlog').textContent||'';
+ if(!txt){note('Geen ruwe data om te bewaren.');return;}
+ const blob=new Blob([txt],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+ a.download='hvac_raw_'+new Date().toISOString().replace(/[:.]/g,'-')+'.txt';document.body.appendChild(a);a.click();
+ setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0);note('Ruwe data gedownload.');};
+if('serial'in navigator){note('Desktopbrowser herkend — druk op Verbinden (Web Serial).');}
+else if(navigator.usb){note('Android-modus — druk op Verbinden en kies je USB-serieel adapter (WebUSB).');}
+else{document.getElementById('btnConnect').disabled=true;note('Geen Web Serial/WebUSB in deze browser — gebruik Demo of de native app.');}
+</script>
+</body>
+</html>
