@@ -1,0 +1,1592 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MR96 HVAC</title>
+<meta name="description" content="Live uitlezing van de MR96 HVAC-regelaar via een USB-serieel adapter (Web Serial).">
+<meta name="theme-color" content="#f9f9ff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%231f5fae'/%3E%3Cpath d='M12 4v16M5 8l14 8M19 8L5 16' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f9f9ff;
+  --surface-low: #f1f2f8;
+  --surface: #ebecf3;
+  --surface-high: #e2e3ea;
+  --on: #1a1c20;
+  --on-variant: #44474f;
+  --muted: #74777f;
+  --outline: #c4c6d0;
+  --primary: #1f5fae;
+  --on-primary: #ffffff;
+  --primary-container: #d6e3ff;
+  --on-primary-container: #001b3d;
+  --secondary-container: #d9e3f8;
+  --on-secondary-container: #121c2b;
+  --aan: #2e7d32;
+  --on-aan: #ffffff;
+  --uit: #e2e2e9;
+  --on-uit: #44474f;
+  --ok: #2e7d32;
+  --waarschuwing: #b26a00;
+  --fout: #c62828;
+  --log-bg: #14161a;
+  --log-tijd: #7d828c;
+  --log-rx: #a5d6a7;
+  --log-tx: #81d4fa;
+  --log-melding: #ffcc80;
+  --log-fout: #ef9a9a;
+  --radius: 14px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "Roboto Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111318;
+    --surface-low: #191c20;
+    --surface: #1d2024;
+    --surface-high: #282a2f;
+    --on: #e2e2e9;
+    --on-variant: #c4c6d0;
+    --muted: #8e9099;
+    --outline: #44474f;
+    --primary: #a9c7ff;
+    --on-primary: #003063;
+    --primary-container: #00468c;
+    --on-primary-container: #d6e3ff;
+    --secondary-container: #3e4759;
+    --on-secondary-container: #d9e3f8;
+    --aan: #81c784;
+    --on-aan: #0b3d0f;
+    --uit: #33353a;
+    --on-uit: #c4c6d0;
+    --ok: #81c784;
+    --waarschuwing: #ffb74d;
+    --fout: #ef9a9a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111318; --surface-low: #191c20; --surface: #1d2024; --surface-high: #282a2f;
+  --on: #e2e2e9; --on-variant: #c4c6d0; --muted: #8e9099; --outline: #44474f;
+  --primary: #a9c7ff; --on-primary: #003063; --primary-container: #00468c; --on-primary-container: #d6e3ff;
+  --secondary-container: #3e4759; --on-secondary-container: #d9e3f8;
+  --aan: #81c784; --on-aan: #0b3d0f; --uit: #33353a; --on-uit: #c4c6d0;
+  --ok: #81c784; --waarschuwing: #ffb74d; --fout: #ef9a9a;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--on);
+  font: 15px/1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+button, select, input { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }
+
+/* ------------------------------------------------------------ indeling */
+.app {
+  height: 100dvh;
+  display: grid;
+  grid-template-areas: "top" "status" "main" "nav";
+  grid-template-rows: auto auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 720px) {
+  .app {
+    grid-template-areas: "nav top" "nav status" "nav main";
+    grid-template-rows: auto auto 1fr;
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+}
+header.top {
+  grid-area: top;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+}
+header.top h1 { font-size: 22px; font-weight: 600; margin: 0; flex: 1; min-width: 0; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 400px) { header.top { padding-left: 12px; padding-right: 12px; gap: 4px; } header.top h1 { font-size: 20px; } }
+.statusblok { grid-area: status; }
+.menu-banner {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 16px; background: #fff4e5; color: #663c00; font-size: 14px;
+}
+.menu-banner span { flex: 1 1 220px; }
+.installeer-banner {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 16px; background: var(--primary-container); color: var(--on-primary-container); font-size: 14px;
+}
+.installeer-banner span { flex: 1 1 220px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .menu-banner { background: #3d2a0a; color: #ffd8a8; } }
+:root[data-theme="dark"] .menu-banner { background: #3d2a0a; color: #ffd8a8; }
+.status {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px; background: var(--surface-low);
+  font-size: 14px;
+}
+.status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+.status .dot.ok { background: var(--ok); }
+.status .dot.waarschuwing { background: var(--waarschuwing); }
+.status .dot.fout { background: var(--fout); }
+#statusTekst { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#statusRechts { font-size: 12px; color: var(--on-variant); white-space: nowrap; }
+#statusRechts.waarschuwing { color: var(--waarschuwing); }
+main { grid-area: main; min-height: 0; overflow: auto; position: relative; }
+
+nav.nav {
+  grid-area: nav;
+  display: flex; justify-content: space-around;
+  background: var(--surface);
+  padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+}
+@media (min-width: 720px) {
+  nav.nav { flex-direction: column; justify-content: center; gap: 12px; padding: 8px 0; }
+}
+.nav button {
+  border: 0; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 500; color: var(--on-variant);
+  padding: 0 4px; min-width: 64px;
+}
+.nav button .pil-icoon {
+  width: 56px; height: 32px; border-radius: 16px;
+  display: grid; place-items: center;
+  transition: background .2s;
+}
+.nav button[aria-selected="true"] { color: var(--on); }
+.nav button[aria-selected="true"] .pil-icoon { background: var(--secondary-container); color: var(--on-secondary-container); }
+.nav svg, .icoon { width: 22px; height: 22px; fill: currentColor; flex: none; }
+
+/* ------------------------------------------------------------ knoppen en chips */
+.btn {
+  border: 1px solid transparent; border-radius: 999px; cursor: pointer;
+  padding: 8px 18px; font-weight: 500; font-size: 14px;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn.primary { background: var(--primary); color: var(--on-primary); }
+.btn.outline { background: transparent; border-color: var(--muted); color: var(--primary); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn:focus-visible, .chip:focus-visible, .rij:focus-visible, .nav button:focus-visible, .macro:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 2px;
+}
+select.baud {
+  border: 0; background: transparent; color: var(--primary); font-weight: 500;
+  padding: 8px 4px; border-radius: 8px; cursor: pointer; font-size: 14px;
+}
+.chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 16px; scrollbar-width: none; flex: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  border: 1px solid var(--outline); background: transparent; color: var(--on-variant);
+  border-radius: 8px; padding: 6px 12px; font-size: 14px; font-weight: 500;
+  white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; flex: none;
+}
+.chip[aria-pressed="true"] { background: var(--secondary-container); color: var(--on-secondary-container); border-color: transparent; }
+.chip[aria-pressed="true"]::before { content: "✓"; font-size: 13px; }
+.chip.indicator { cursor: default; background: var(--surface-high); border-color: transparent; }
+.chip.indicator.aan { background: var(--aan); color: var(--on-aan); }
+.chip:disabled { opacity: .5; cursor: default; }
+.chip .icoon { width: 18px; height: 18px; }
+
+/* ------------------------------------------------------------ overzicht */
+.pagina { padding: 16px; max-width: 1600px; margin: 0 auto; }
+.kop { display: flex; align-items: baseline; gap: 12px; margin: 4px 4px 10px; }
+.kop h2 { font-size: 22px; font-weight: 600; margin: 0; flex: 1; letter-spacing: -0.01em; }
+.kop .klein { font-size: 12px; color: var(--on-variant); }
+.kern { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 760px) { .kern { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1500px) { .kern { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.tegel {
+  background: var(--primary-container); color: var(--on-primary-container);
+  border-radius: var(--radius); padding: 12px 14px;
+}
+.tegel .label { font-size: 13px; font-weight: 500; }
+.tegel .waarde { font-size: 30px; font-weight: 600; line-height: 1.15; margin-top: 4px; }
+.tegel .eenheid { font-size: 14px; font-weight: 500; margin-left: 3px; }
+.blok-titel { font-size: 22px; font-weight: 600; margin: 28px 4px 12px; letter-spacing: -0.01em; }
+.kaarten { columns: 330px; column-gap: 12px; }
+.kaart {
+  break-inside: avoid; background: var(--surface-low); border-radius: var(--radius);
+  padding: 8px 4px; margin-bottom: 12px; display: inline-block; width: 100%;
+}
+.kaart-kop { display: flex; align-items: center; padding: 6px 12px 4px; }
+.kaart-kop h3 { font-size: 14px; font-weight: 600; color: var(--primary); margin: 0; flex: 1; }
+.kaart-kop .klein { font-size: 12px; color: var(--on-variant); }
+.leeg {
+  background: var(--secondary-container); color: var(--on-secondary-container);
+  border-radius: var(--radius); padding: 16px; margin-top: 12px; display: flex; gap: 12px; align-items: flex-start;
+}
+
+.rij {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  border: 0; background: none; text-align: left; cursor: pointer;
+  padding: 9px 12px; border-radius: 10px; min-height: 40px;
+}
+.rij:hover { background: var(--surface); }
+.rij .code { font: 12px var(--mono); color: var(--primary); min-width: 42px; }
+.rij .naam { flex: 1; min-width: 0; font-size: 14px; }
+.rij .naam.zonder { color: var(--on-variant); }
+.rij .waarde { font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pil {
+  border-radius: 999px; padding: 2px 12px; font-size: 12px; font-weight: 700;
+  background: var(--uit); color: var(--on-uit); white-space: nowrap;
+}
+.pil.aan { background: var(--aan); color: var(--on-aan); }
+
+/* ------------------------------------------------------------ signalen */
+.zoekbalk { padding: 12px 16px 4px; }
+.zoek {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--muted); border-radius: 6px; padding: 0 12px; height: 52px;
+}
+.zoek:focus-within { border-color: var(--primary); border-width: 2px; padding: 0 11px; }
+.zoek input { flex: 1; border: 0; background: none; outline: none; font-size: 16px; min-width: 0; }
+.zoek button { border: 0; background: none; cursor: pointer; color: var(--on-variant); padding: 4px; display: grid; }
+.teller { font-size: 12px; color: var(--on-variant); padding: 6px 20px; }
+.lijst { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); padding: 0 8px 16px; }
+@media (max-width: 400px) { .lijst { grid-template-columns: minmax(0, 1fr); } }
+
+/* ------------------------------------------------------------ terminal */
+.terminal { display: flex; flex-direction: column; height: 100%; padding-top: 8px; }
+.terminal .chips { margin-bottom: 6px; }
+.terminal .teller { padding: 0 16px 2px; }
+.log-wrap { flex: 1; min-height: 0; position: relative; margin: 4px 12px 6px; }
+.log {
+  height: 100%; overflow: auto; background: var(--log-bg); border-radius: 12px;
+  padding: 10px; font: 12px/16px var(--mono); color: var(--log-rx);
+  white-space: pre-wrap; word-break: break-all;
+}
+.log .t { color: var(--log-tijd); }
+.log .tx { color: var(--log-tx); }
+.log .melding { color: var(--log-melding); }
+.log .fout { color: var(--log-fout); }
+.log .leeg-log { color: var(--log-tijd); font-family: var(--font); font-size: 14px; display: grid; place-items: center; height: 100%; white-space: normal; }
+.naar-onder {
+  position: absolute; right: 10px; bottom: 10px; width: 40px; height: 40px; border-radius: 12px;
+  border: 0; background: var(--primary-container); color: var(--on-primary-container);
+  cursor: pointer; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.3);
+}
+.macros { display: flex; gap: 8px; overflow-x: auto; padding: 0 12px 6px; scrollbar-width: none; flex: none; }
+.macros::-webkit-scrollbar { display: none; }
+.macro {
+  border: 0; border-radius: 10px; padding: 10px 18px; font-weight: 500; font-size: 14px; cursor: pointer;
+  background: var(--surface-high); color: var(--on-variant); white-space: nowrap; flex: none;
+  user-select: none; -webkit-user-select: none; touch-action: manipulation;
+}
+.macro.gevuld { background: var(--secondary-container); color: var(--on-secondary-container); }
+.invoer { padding: 4px 12px max(10px, env(safe-area-inset-bottom)); flex: none; }
+@media (max-width: 719px) { .invoer { padding-bottom: 10px; } }
+.invoer .chips { padding: 0 0 6px; }
+.invoer-rij { display: flex; gap: 8px; align-items: center; }
+.veld {
+  flex: 1; min-width: 0; height: 52px; border: 1px solid var(--muted); border-radius: 6px;
+  background: none; padding: 0 14px; font: 16px var(--mono); outline: none;
+}
+.veld:focus { border: 2px solid var(--primary); padding: 0 13px; }
+.veld.fout { border-color: var(--fout); }
+.verzend {
+  width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer; flex: none;
+  background: var(--primary); color: var(--on-primary); display: grid; place-items: center;
+}
+.foutmelding { color: var(--fout); font-size: 12px; min-height: 0; padding: 2px 4px 0; }
+
+/* ------------------------------------------------------------ dialogen */
+dialog {
+  border: 0; border-radius: 28px; padding: 24px; max-width: min(520px, calc(100vw - 32px));
+  width: 100%; background: var(--surface); color: var(--on);
+}
+dialog::backdrop { background: rgba(0,0,0,.4); }
+dialog h2 { margin: 0 0 14px; font-size: 22px; font-weight: 500; }
+dialog .tekst { color: var(--on-variant); }
+dialog .detail { margin-top: 12px; }
+dialog .detail .label { font-size: 12px; color: var(--on-variant); }
+dialog hr { border: 0; border-top: 1px solid var(--outline); margin: 14px 0 4px; }
+dialog .acties { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+dialog .acties button { border: 0; background: none; color: var(--primary); font-weight: 500; padding: 10px 14px; border-radius: 999px; cursor: pointer; }
+dialog .acties button:hover { background: var(--surface-high); }
+dialog .acties button:disabled { opacity: .4; cursor: default; }
+dialog label.veldlabel { display: block; font-size: 12px; color: var(--on-variant); margin: 12px 0 4px; }
+dialog input[type=text] { width: 100%; }
+dialog .check { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+dialog .check input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+.banner {
+  margin: 12px 16px 0; padding: 14px 16px; border-radius: var(--radius);
+  background: #fff4e5; color: #663c00; font-size: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .banner { background: #3d2a0a; color: #ffd8a8; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>MR96 HVAC</h1>
+    <select class="baud" id="baud" aria-label="Baudrate"></select>
+    <button class="btn primary" id="verbind">Verbinden</button>
+  </header>
+
+  <div class="statusblok">
+    <div class="status" role="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusTekst">Niet verbonden</span>
+      <span id="statusRechts" class="num"></span>
+    </div>
+    <div id="menuBanner" class="menu-banner" role="alert" hidden>
+      <span>Het menu van de regelaar is open. Zolang het open is, stuurt de regelaar geen live data.</span>
+      <button class="btn primary" id="menuSluiten" type="button">Menu sluiten</button>
+    </div>
+    <div id="installeerBanner" class="installeer-banner" hidden>
+      <span>Installeer MR96 HVAC als app: dan staat hij op je startscherm en werkt hij ook zonder internet.</span>
+      <button class="btn outline" id="installeerLater" type="button">Later</button>
+      <button class="btn primary" id="installeer" type="button">Installeren</button>
+    </div>
+  </div>
+
+  <nav class="nav" role="tablist" aria-label="Schermen">
+    <button role="tab" data-tab="overzicht" aria-selected="true">
+      <span class="pil-icoon"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></span>Overzicht
+    </button>
+    <button role="tab" data-tab="signalen" aria-selected="false">
+      <span class="pil-icoon"><svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg></span>Signalen
+    </button>
+    <button role="tab" data-tab="terminal" aria-selected="false">
+      <span class="pil-icoon"><svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4V8h16v10zM6.5 10.5l1.4-1.4 3.9 3.9-3.9 3.9-1.4-1.4L9 13zM12 15h6v2h-6z"/></svg></span>Terminal
+    </button>
+  </nav>
+
+  <main>
+    <div id="nietOndersteund" class="banner" hidden>
+      Deze browser kan geen USB-serieel adapter aanspreken. Gebruik <b>Google Chrome</b> of <b>Microsoft Edge</b>
+      op een computer, of <b>Chrome</b> op Android. Firefox en Safari ondersteunen dit niet.
+    </div>
+    <div id="nietVeilig" class="banner" hidden>
+      De verbinding met de adapter werkt enkel via <b>https://</b> of <b>http://localhost</b>.
+      Open de pagina op een van die manieren (op Android: via een https-adres).
+    </div>
+
+    <section id="tab-overzicht" class="pagina"></section>
+    <section id="tab-signalen" hidden></section>
+    <section id="tab-terminal" class="terminal" hidden></section>
+  </main>
+</div>
+
+<dialog id="uitlegDlg">
+  <h2 id="uitlegTitel"></h2>
+  <div id="uitlegTekst" style="font-size:16px"></div>
+  <hr>
+  <div class="detail"><div class="label">Sleutel</div><div id="uitlegSleutel"></div></div>
+  <div class="detail"><div class="label">Positie</div><div id="uitlegPositie"></div></div>
+  <div class="detail"><div class="label">Huidige waarde</div><div id="uitlegWaarde" class="num"></div></div>
+  <div class="acties"><button value="ok" onclick="this.closest('dialog').close()">Sluiten</button></div>
+</dialog>
+
+<dialog id="bevestigDlg">
+  <h2>Gegevens versturen?</h2>
+  <div class="tekst">Je stuurt gegevens naar de HVAC-regelaar. Verstuur alleen commando's waarvan je weet wat ze doen,
+    en niet tijdens dienst. Deze vraag komt één keer per sessie.</div>
+  <div class="acties">
+    <button id="bevestigNee">Annuleren</button>
+    <button id="bevestigJa">Versturen</button>
+  </div>
+</dialog>
+
+<dialog id="macroDlg">
+  <h2 id="macroTitel">Macro</h2>
+  <label class="veldlabel" for="macroNaam">Naam op de knop</label>
+  <input type="text" class="veld" id="macroNaam" style="font-family:var(--font)">
+  <label class="veldlabel" for="macroWaarde" id="macroWaardeLabel">Waarde</label>
+  <input type="text" class="veld" id="macroWaarde" autocomplete="off" spellcheck="false">
+  <label class="check"><input type="checkbox" id="macroHex"> Waarde is hex (bv. 1B 4D 0D)</label>
+  <div id="macroEindeBlok">
+    <label class="veldlabel">Regeleinde</label>
+    <div class="chips" id="macroEinde" style="padding:0"></div>
+  </div>
+  <div class="acties">
+    <button id="macroAnnuleer">Annuleren</button>
+    <button id="macroOpslaan">Opslaan</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+
+/* ===================================================================== gegevens
+ * Letterlijk overgenomen uit MR96_HVAC.exe (MR96_HVAC.Models.Gegevens). Zie PROTOCOL.md.
+ */
+const BAUDRATE_MR96 = 4800;
+const PAKKET = 120, DIGITAAL_DEEL = 50, ANALOOG_AANTAL = 36, DIGITAAL_AANTAL = 400, ANALOOG_IN_PAKKET = 33;
+const SYNC = [0xFD, 0xFE, 0xFE, 0xFA];
+
+const SLEUTELS_A = [
+  "Softwareversie", "Temperatuur verse lucht", "Seperator", "Temperatuur menglucht", "Temperatuur verdamper",
+  "Temperatuur behandelde lucht", "Temperatuur zonnesensor", "Temperatuur gerecycleerde lucht", "Temperatuur reizigers 1", "Temperatuur reizigers 2",
+  "Temperatuur compartiment of hoofdwachter", "Temperatuur stuurpost behandelde lucht", "Gevraagde temperatuur stuurpost", "Temperatuur stuurpost", "Freon lage druk",
+  "Freon hoge druk", "Gevraagde temperatuur reizigers", "Gevraagde temperatuur compartiment of hoofdwachter", "Gevraagde temperatuur behandelde lucht", "",
+  "Stop koeling", "", "Offsettemperatuur reizigers", "", "",
+  "Start koeling", "Stop koeling", "Wijziging verwarmingsregime", "", "Gevraagde temperatuur behandelde lucht stuurpost",
+  "Start tweede compressor", "", "", "", "", ""
+];
+const EENHEID_A = [
+  "", "°C", "", "°C", "°C", "°C", "°C", "°C", "°C", "°C",
+  "°C", "°C", "°C", "°C", "bar", "bar", "°C", "°C", "°C", "",
+  "", "", "°C", "", "", "", "", "", "", "°C",
+  "", "", "", "", "", ""
+];
+const UITLEG_A = [
+  "Revisie index van het programma", "Temperatuur verse lucht (buitenlucht)", "",
+  "Temperatuur gemengde lucht (buitenlucht + gerecycleerde lucht)", "Luchttemperatuur na verdamper",
+  "Luchttemperatuur aan uitgang verwarmingsbatterij", "Temperatuur zonnesensor",
+  "Binnentemperatuur rijtuig (gerecycleerde lucht)", "Binnentemperatuur (aanzuiging plafond 1)",
+  "Binnentemperatuur (aanzuiging plafond 2)", "Binnentemperatuur (kleine reizigersafdeling of hoofdwachter)",
+  "Temperatuur uitgang verwarmingsbatterij – stuurpost", "Ingestelde waarde binnentemperatuur – stuurpost",
+  "Binnentemperatuur – stuurpost", "Freondruk zuigzijde - lage druk", "Freondruk perszijde - hoge druk",
+  "Instelling binnentemperatuur rijtuig", "Instelling binnentemperatuur kleine reizigersafdeling of hoofdwachter",
+  "Gevraagde temperatuur behandelde lucht", "",
+  "Vertragingstijd koelregime na verwarmingsregime", "",
+  "Verschil tussen ingestelde waarde en binnentemperatuur rijtuig", "", "",
+  "Start koeling", "Stop koeling", "Wijzig verwarmingregime", "",
+  "Gevraagde temperatuur behandelde lucht – stuurpost",
+  "Tijdstip start tweede compressor", "", "", "", "", ""
+];
+/** bit -> [sleutel, uitleg] */
+const DIGITAAL = {
+  0: ["Anemostaat_OK", "Anemostaat meet luchtstroom"],
+  1: ["Luchtklep_90%", "Verseluchtklep pos. 1 (90% recycle)"],
+  2: ["Luchtklep_28%", "Verseluchtklep pos. 2 (28% recycle)"],
+  3: ["Voorverwarm./voorkoeling", "Voorverwarming of voorkoeling is uit"],
+  4: ["SP_anemostaat_OK", "Anemostaat stuurpost meet luchtstroom"],
+  5: ["SP_Freon", "Freon stuurpost ok"],
+  6: ["Freon_vloeistofventiel", "Vloeistofklep freon open"],
+  7: ["Freon_bypassventiel", "Bypassklep freon open"],
+  8: ["T_Frislucht_<_5°C", "Buitentemperatuur < 5 °C"],
+  9: ["Compressor_1", "Compressor 1 in dienst"],
+  10: ["Compressor_2", "Compressor 2 in dienst"],
+  11: ["Condensor_1", "Condensorventilator 1 in dienst"],
+  12: ["Condensor_2", "Condensorventilator 2 in dienst"],
+  13: ["SP_Verwarming", "Verwarming stuurpost in dienst"],
+  14: ["SP_Ventilatie", "Ventilatie stuurpost in dienst"],
+  15: ["SP_Vent_Hoog", "Ventilatie stuurpost hoog"],
+  16: ["Lijn_1_Compr_OK", "Veiligheidskring compressor 1 OK"],
+  17: ["Lijn_2_Compr_OK", "Veiligheidskring compressor 2 OK"],
+  18: ["SP_Keuze_POS_1", "Keuze stuurpost ventilator stand 1"],
+  19: ["SP_Keuze_POS_5", "Keuze stuurpost ventilator stand 5"],
+  20: ["SP_Bezet", "Stuurpost bezet"],
+  22: ["SP_Lijn_Verwarm_OK", "Veiligheidskring verwarmingsbatterij stuurpost OK"],
+  23: ["SP_Aanwezig", "Aanwezigheid stuurpost"],
+  24: ["Verwarming_koppeling", "Verwarming koppeling"],
+  25: ["Climatisatie_defect", "Climatisatie is defect"],
+  26: ["Extractie", "Extractieventilator in dienst"],
+  27: ["Verwarming_1/3", "Verwarming 1/3 in dienst"],
+  28: ["Verwarming_2/3", "Verwarming 2/3 in dienst"],
+  29: ["Hoge_snelheid_ventilatie", "Klimatisatieventilator in dienst (hoge snelheid)"],
+  30: ["Hoge_snelheid_extractie", "Extractieventilator in dienst (hoge snelheid)"],
+  31: ["AFD_Verwarming", "Verwarming kleine afdeling of lokaal hoofdwachter"],
+  32: ["380V", "380V aanwezig"],
+  33: ["Overtemp_omvormer", "Omvormer is te warm"],
+  35: ["Vrijgave_verwarming", "Verwarming is vrijgegeven"],
+  36: ["AFD_Aanwezig", "Aanwezigheid afdeling hoofdwachter"],
+  37: ["Pumpdown_fase", "Pumpdown fase is lopende"],
+  38: ["c2nd_compr", "?"],
+  39: ["c400V_togl", "?"],
+  40: ["Vraag_planton", "Vraag planton"],
+  41: ["SP_Gekoppeld", "Aanwezigheid gekoppelde stuurpost"],
+  42: ["24V", "24V aanwezig"],
+  43: ["T_Verwarming_<_90°C", "Temperatuur verwarming is lager dan 90°C"],
+  44: ["Lijn_verwarming_OK", "Veiligheidskring verwarmingsbatterij OK"],
+  45: ["Location_code_1", "?"],
+  46: ["Location_code_2", "?"],
+  47: ["Remming", "Remregime geactiveerd"],
+  154: ["Wikk_compr_1_defect", "Wikkelingen compressor 1 defect"],
+  155: ["LD_Normaal", "Freon lage druk is normaal"],
+  156: ["Wikk_compr_2_defect", "Wikkelingen compressor 2 defect"],
+  157: ["HD_Normaal", "Freon hoge druk is normaal"],
+  158: ["Koeling_in_testmodus", "Koeling is in testmodus"],
+  159: ["Koeling_actief", "Koeling is actief"],
+  162: ["I_Compr_1_test", "Test compressor 1"],
+  163: ["I_Cond_1_test", "Test condensor 1"],
+  164: ["I_Freon_liquid_test", "Test freon"],
+  165: ["I_Compr_2_test", "Test compressor 2"],
+  166: ["I_Cond_2_test", "Test condensor 2"],
+  167: ["I_Freon_bypass_test", "Test freon bypassklep"],
+  168: ["Planton_In", "Planton"],
+  169: ["cH_Dummy", "niet gebruikt"],
+  170: ["L_Compr_1", "? compressor 1"],
+  171: ["L_Cond_1", "? condensor 1"],
+  172: ["L_Freon_liquid", "? freon"],
+  173: ["L_Compr_2", "? compressor 2"],
+  174: ["L_Cond_2", "? condensor 2"],
+  175: ["L_Freon_bypass", "? freon bypassklep"],
+  176: ["cH_Dummy", "niet gebruikt"],
+  177: ["cH_Dummy", "niet gebruikt"],
+};
+
+/* Schermindeling uit Tekstueel.xaml: InData-index 0..35 = analoog, 36.. = digitaal bit (index - 36). */
+const INDELING = [
+  ["Reizigersafdeling", [
+    ["Gemeten waarden", [1, 6, 7, 3, 4, 5, 8, 9, 10, 14, 15]],
+    ["Gevraagde waarden", [16, 22, 17, 18]],
+    ["Temporisatie secondeteller", [27, 25, 30, 26]],
+    ["Aanwezigheid", [78, 68, 36, 62, 83, 72, 194, 44, 71, 185, 184, 39]],
+    ["Beveiliging", [61, 79, 80, 69, 180, 182, 181, 183, 52, 53]],
+    ["Gevraagde bedrijfstoestanden", [76, 37, 38, 65, 66, 63, 64, 67]],
+    ["Koelcircuit", [45, 46, 47, 48, 42, 43, 73]],
+  ]],
+  ["Stuurpost", [
+    ["Status", [59, 56, 77]],
+    ["Gemeten waarden", [13, 11]],
+    ["Gevraagde waarden", [12, 29]],
+    ["Aanwezigheid waarden", [54, 55, 40]],
+    ["Gevraagde bedrijfstoestanden", [50, 49, 51, 41, 60]],
+    ["Temporisatie secundaire teller", [20]],
+    ["Beveiliging", [58]],
+    ["Diversen", [81, 82, 75, 74]],
+    ["Test", [196, 197, 198, 199, 200, 201, 202, 203]],
+    ["Koeling", [188, 189, 190, 191, 192, 193, 195]],
+  ]],
+];
+const KERNCIJFERS = [
+  [1, "Buitenlucht"], [8, "Reizigers 1"], [9, "Reizigers 2"], [16, "Gevraagd reizigers"],
+  [5, "Behandelde lucht"], [13, "Stuurpost"], [14, "Freon lage druk"], [15, "Freon hoge druk"],
+];
+const BAUDRATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
+const GEEN_DATA_NA_MS = 15000;
+
+/* ===================================================================== signalen */
+const inData = i => i < ANALOOG_AANTAL ? { a: true, n: i } : { a: false, n: i - ANALOOG_AANTAL };
+const code = s => (s.a ? "A" : "D") + s.n;
+const sleutel = s => s.a ? (SLEUTELS_A[s.n] || `Kanaal ${s.n}`) : (DIGITAAL[s.n]?.[0] || `Bit ${s.n}`);
+const heeftNaam = s => s.a ? !!SLEUTELS_A[s.n] : !!DIGITAAL[s.n];
+function weergaveNaam(s) {
+  if (s.a) return sleutel(s);
+  const u = DIGITAAL[s.n]?.[1] || "";
+  return u && !u.startsWith("?") && u !== "niet gebruikt" ? u : sleutel(s);
+}
+const uitleg = s => (s.a ? UITLEG_A[s.n] : DIGITAAL[s.n]?.[1]) || "Geen uitleg beschikbaar.";
+
+/* ===================================================================== protocol */
+/** Zelfde berekening als VerwerkenData.SplitsData: digitaal LSB eerst, analoog big-endian × 0,1 − 32. */
+function decodeer(p) {
+  const analoog = new Float32Array(ANALOOG_AANTAL);
+  const digitaal = new Uint8Array(DIGITAAL_AANTAL);
+  for (let k = 0, pos = 4 + DIGITAAL_DEEL; pos + 1 < PAKKET; k++, pos += 2) {
+    analoog[k] = ((p[pos] << 8) | p[pos + 1]) * 0.1 - 32;
+  }
+  for (let i = 0; i < DIGITAAL_DEEL; i++) {
+    for (let j = 0; j < 8; j++) digitaal[i * 8 + j] = (p[4 + i] >> j) & 1;
+  }
+  return { analoog, digitaal };
+}
+
+/** Zoekt de sync-reeks en levert volledige pakketten; de buffer blijft begrensd. */
+class PakketOntvanger {
+  constructor(opPakket) { this.opPakket = opPakket; this.buf = new Uint8Array(4096); this.len = 0; }
+  voeg(data) {
+    let bron = 0;
+    while (bron < data.length) {
+      const n = Math.min(data.length - bron, this.buf.length - this.len);
+      this.buf.set(data.subarray(bron, bron + n), this.len);
+      this.len += n; bron += n;
+      this.verwerk();
+    }
+  }
+  verwerk() {
+    for (;;) {
+      const start = this.zoek();
+      if (start < 0) { if (this.len >= 4) this.schuif(this.len - 3); return; }
+      this.schuif(start);
+      if (this.len < PAKKET) return;
+      this.opPakket(this.buf.slice(0, PAKKET));
+      this.schuif(PAKKET);
+    }
+  }
+  zoek() {
+    for (let i = 0; i + 4 <= this.len; i++) {
+      if (this.buf[i] === 0xFD && this.buf[i + 1] === 0xFE && this.buf[i + 2] === 0xFE && this.buf[i + 3] === 0xFA) return i;
+    }
+    return -1;
+  }
+  schuif(n) { if (n <= 0) return; this.buf.copyWithin(0, n, this.len); this.len -= n; }
+  wis() { this.len = 0; }
+}
+
+/** Haalt de binaire pakketten uit de stroom, zodat in de terminal enkel tekst overblijft. */
+class PakketFilter {
+  constructor() { this.gevonden = 0; this.overslaan = 0; }
+  filter(data) {
+    const uit = [];
+    for (const b of data) {
+      if (this.overslaan > 0) { this.overslaan--; continue; }
+      if (b === SYNC[this.gevonden]) {
+        if (++this.gevonden === 4) { this.gevonden = 0; this.overslaan = PAKKET - 4; }
+        continue;
+      }
+      if (this.gevonden > 0) { for (let i = 0; i < this.gevonden; i++) uit.push(SYNC[i]); this.gevonden = 0; }
+      if (b === SYNC[0]) this.gevonden = 1; else uit.push(b);
+    }
+    return Uint8Array.from(uit);
+  }
+  wis() { this.gevonden = 0; this.overslaan = 0; }
+}
+
+const teken = c => c === 0x09 ? " " : (c < 0x20 || c === 0x7F) ? "·" : String.fromCharCode(c); // Latin-1
+const naarHex = b => Array.from(b, x => x.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+const naarAscii = b => Array.from(b, c => c === 0x0D ? "\\r" : c === 0x0A ? "\\n" : teken(c)).join("");
+function vanHex(s) {
+  const schoon = s.replace(/0x/gi, "").replace(/[\s,;:-]/g, "");
+  if (!schoon || schoon.length % 2 || /[^0-9a-f]/i.test(schoon)) return null;
+  return Uint8Array.from(schoon.match(/../g), h => parseInt(h, 16));
+}
+const latin1 = s => Uint8Array.from(s, ch => ch.charCodeAt(0) & 0xFF);
+
+/* ===================================================================== opslag */
+const opslag = {
+  lees(k, std) { try { const v = localStorage.getItem("mr96." + k); return v === null ? std : JSON.parse(v); } catch { return std; } },
+  schrijf(k, v) { try { localStorage.setItem("mr96." + k, JSON.stringify(v)); } catch { /* privémodus */ } },
+};
+
+/* ===================================================================== DOM-hulp */
+const $ = s => document.querySelector(s);
+function el(tag, attrs = {}, ...kinderen) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kinderen) if (k != null) e.append(k);
+  return e;
+}
+const icoon = d => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "icoon"); s.innerHTML = `<path d="${d}"/>`; return s; };
+const ICOON = {
+  zend: "M2 21l21-9L2 3v7l15 2-15 2z",
+  wis: "M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
+  deel: "M18 16.1c-.8 0-1.4.3-2 .8l-7.1-4.2c.1-.2.1-.5.1-.7s0-.5-.1-.7L16 7.2c.5.5 1.2.8 2 .8 1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3c0 .2 0 .5.1.7L8 9.8C7.5 9.3 6.8 9 6 9c-1.7 0-3 1.3-3 3s1.3 3 3 3c.8 0 1.5-.3 2-.8l7.1 4.2c-.1.2-.1.4-.1.6 0 1.6 1.3 2.9 2.9 2.9s2.9-1.3 2.9-2.9-1.2-2.8-2.8-2.8z",
+  bewaar: "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z",
+  zoek: "M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 9.5 16a6.5 6.5 0 0 0 4.2-1.6l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z",
+  sluit: "M19 6.4L17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z",
+  info: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
+  omlaag: "M7.4 8.6L12 13.2l4.6-4.6L18 10l-6 6-6-6z",
+};
+
+/* ===================================================================== toestand */
+const toestand = {
+  meting: null, pakketten: 0, laatstePakket: 0,
+  verbinding: "niet", // niet | bezig | verbonden | fout
+  menuOpen: false,
+  baudrate: opslag.lees("baudrate", BAUDRATE_MR96),
+};
+/** code -> lijst van updatefuncties (één per plaats waar het signaal getoond wordt) */
+const waardeVelden = new Map();
+const groepTellers = [];
+
+function registreer(s, f) {
+  const c = code(s);
+  if (!waardeVelden.has(c)) waardeVelden.set(c, []);
+  waardeVelden.get(c).push(f);
+}
+
+function analoogTekst(m, k, dec = 2) { return m ? m.analoog[k].toFixed(dec) : "–"; }
+
+function maakRij(s, metCode = false) {
+  const naam = el("span", { class: "naam" + (heeftNaam(s) ? "" : " zonder") }, weergaveNaam(s));
+  const rij = el("button", { class: "rij", type: "button", "data-code": code(s), onclick: () => toonUitleg(s) },
+    metCode ? el("span", { class: "code" }, code(s)) : null, naam);
+  if (s.a) {
+    const w = el("span", { class: "waarde" }, "–");
+    const eenheid = EENHEID_A[s.n];
+    let vorige = null;
+    registreer(s, m => {
+      const t = analoogTekst(m, s.n) + (m && eenheid ? " " + eenheid : "");
+      if (t !== vorige) { w.textContent = t; vorige = t; }
+    });
+    rij.append(w);
+  } else {
+    const p = el("span", { class: "pil" }, "–");
+    let vorige = null;
+    registreer(s, m => {
+      const v = m ? m.digitaal[s.n] : -1;
+      if (v === vorige) return;
+      vorige = v;
+      p.textContent = v === -1 ? "–" : v ? "AAN" : "UIT";
+      p.classList.toggle("aan", v === 1);
+    });
+    rij.append(p);
+  }
+  return rij;
+}
+
+/* ===================================================================== overzicht */
+function bouwOverzicht() {
+  const tab = $("#tab-overzicht");
+  const software = el("span", { class: "klein num" }, "Software –");
+  tab.append(el("div", { class: "kop" }, el("h2", {}, "Kerncijfers"), software));
+  registreer({ a: true, n: 0 }, m => { software.textContent = "Software " + analoogTekst(m, 0, 1); });
+
+  const kern = el("div", { class: "kern" });
+  for (const [k, titel] of KERNCIJFERS) {
+    const w = el("span", { class: "num" }, "–");
+    kern.append(el("div", { class: "tegel", role: "group", "aria-label": titel },
+      el("div", { class: "label" }, titel),
+      el("div", { class: "waarde" }, w, el("span", { class: "eenheid" }, EENHEID_A[k]))));
+    registreer({ a: true, n: k }, m => { w.textContent = analoogTekst(m, k, 1); });
+  }
+  tab.append(kern);
+
+  const leeg = el("div", { class: "leeg", id: "geenGegevens" }, icoon(ICOON.info),
+    el("div", {}, "Nog geen gegevens. Sluit de USB-serieel adapter aan op de computer en de regelaar, en klik op Verbinden."));
+  tab.append(leeg);
+
+  for (const [blokTitel, groepen] of INDELING) {
+    tab.append(el("h2", { class: "blok-titel" }, blokTitel));
+    const kaarten = el("div", { class: "kaarten" });
+    for (const [groepTitel, indices] of groepen) {
+      const signalen = indices.map(inData);
+      const bits = signalen.filter(s => !s.a).map(s => s.n);
+      const teller = el("span", { class: "klein num" });
+      if (bits.length) groepTellers.push({ el: teller, bits });
+      kaarten.append(el("div", { class: "kaart" },
+        el("div", { class: "kaart-kop" }, el("h3", {}, groepTitel), teller),
+        ...signalen.map(s => maakRij(s))));
+    }
+    tab.append(kaarten);
+  }
+}
+
+/* ===================================================================== signalen */
+const signalenFilter = { analoog: true, digitaal: true, actief: false, naam: true, zoek: "" };
+let signalenRijen = [];
+
+function bouwSignalen() {
+  const tab = $("#tab-signalen");
+  const invoer = el("input", { type: "search", placeholder: "Zoek naam of code, bv. D9", "aria-label": "Zoeken", autocomplete: "off" });
+  const wis = el("button", { type: "button", "aria-label": "Wissen", hidden: true }, icoon(ICOON.sluit));
+  invoer.addEventListener("input", () => { signalenFilter.zoek = invoer.value.trim().toLowerCase(); wis.hidden = !invoer.value; filterSignalen(); });
+  wis.addEventListener("click", () => { invoer.value = ""; signalenFilter.zoek = ""; wis.hidden = true; filterSignalen(); invoer.focus(); });
+  tab.append(el("div", { class: "zoekbalk" }, el("label", { class: "zoek" }, icoon(ICOON.zoek), invoer, wis)));
+
+  const chips = el("div", { class: "chips" });
+  for (const [k, label] of [["analoog", "Analoog"], ["digitaal", "Digitaal"], ["actief", "Alleen actief"], ["naam", "Alleen met naam"]]) {
+    const c = el("button", { class: "chip", type: "button", "aria-pressed": String(signalenFilter[k]) }, label);
+    c.addEventListener("click", () => { signalenFilter[k] = !signalenFilter[k]; c.setAttribute("aria-pressed", String(signalenFilter[k])); filterSignalen(); });
+    chips.append(c);
+  }
+  tab.append(chips);
+  tab.append(el("div", { class: "teller num", id: "signalenTeller" }));
+
+  const lijst = el("div", { class: "lijst" });
+  const alle = [];
+  for (let k = 0; k < ANALOOG_IN_PAKKET; k++) alle.push({ a: true, n: k });
+  for (let b = 0; b < DIGITAAL_AANTAL; b++) alle.push({ a: false, n: b });
+  signalenRijen = alle.map(s => {
+    const rij = maakRij(s, true);
+    lijst.append(rij);
+    return { s, rij, zoektekst: [weergaveNaam(s), sleutel(s), code(s)].join(" ").toLowerCase() };
+  });
+  tab.append(lijst);
+  filterSignalen();
+}
+
+function filterSignalen() {
+  const f = signalenFilter, m = toestand.meting;
+  let n = 0;
+  for (const { s, rij, zoektekst } of signalenRijen) {
+    const zien = (s.a ? f.analoog : f.digitaal) && (!f.naam || heeftNaam(s)) &&
+      (!f.actief || (!s.a && m && m.digitaal[s.n] === 1)) && (!f.zoek || zoektekst.includes(f.zoek));
+    rij.hidden = !zien;
+    if (zien) n++;
+  }
+  $("#signalenTeller").textContent = `${n} signalen`;
+}
+
+/* ===================================================================== uitleg */
+function toonUitleg(s) {
+  const m = toestand.meting;
+  $("#uitlegTitel").textContent = weergaveNaam(s);
+  $("#uitlegTekst").textContent = uitleg(s);
+  $("#uitlegSleutel").textContent = sleutel(s);
+  $("#uitlegPositie").textContent = s.a
+    ? `Analoog kanaal ${s.n} · bytes ${54 + 2 * s.n}–${55 + 2 * s.n} · ruw × 0,1 − 32`
+    : `Digitaal bit ${s.n} · byte ${4 + (s.n >> 3)}, bit ${s.n % 8}`;
+  $("#uitlegWaarde").textContent = s.a
+    ? `${analoogTekst(m, s.n)} ${EENHEID_A[s.n]}`
+    : (m ? (m.digitaal[s.n] ? "AAN" : "UIT") : "–");
+  $("#uitlegDlg").showModal();
+}
+
+/* ===================================================================== bijwerken */
+let tekenGepland = false;
+function planTekenen() {
+  if (tekenGepland) return;
+  tekenGepland = true;
+  requestAnimationFrame(() => {
+    tekenGepland = false;
+    const m = toestand.meting;
+    for (const fs of waardeVelden.values()) for (const f of fs) f(m);
+    for (const g of groepTellers) g.el.textContent = m ? `${g.bits.filter(b => m.digitaal[b]).length} actief` : "";
+    $("#geenGegevens").hidden = !!m;
+    if (signalenFilter.actief && !$("#tab-signalen").hidden) filterSignalen();
+  });
+}
+
+const ontvanger = new PakketOntvanger(p => {
+  toestand.meting = decodeer(p);
+  toestand.pakketten++;
+  toestand.laatstePakket = performance.now();
+  zetMenu(false); // er komen weer pakketten binnen, dus het menu is dicht
+  planTekenen();
+});
+
+/*
+ * Zolang het menu van de regelaar open is, stuurt die geen datapakketten. We herkennen het menu
+ * aan de tekst die de regelaar stuurt ("AF:>", "Alex.Friedmann", "Enter the …") en het sluiten aan "Menu OFF".
+ */
+const menuDetector = {
+  buf: "",
+  voeg(data) {
+    for (const c of data) this.buf += String.fromCharCode(c);
+    const open = Math.max(this.buf.lastIndexOf("AF:>"), this.buf.lastIndexOf("Friedmann"), this.buf.lastIndexOf("Enter the"));
+    const dicht = this.buf.lastIndexOf("Menu OFF");
+    if (open > dicht) zetMenu(true);
+    else if (dicht > open) zetMenu(false);
+    this.buf = this.buf.slice(-16); // genoeg om een tekst te herkennen die over twee stukken verdeeld is
+  },
+};
+
+function zetMenu(open) {
+  if (toestand.menuOpen === open) return;
+  toestand.menuOpen = open;
+  $("#menuBanner").hidden = !open;
+  if (open) term.melding("Menu van de regelaar is open: live data gepauzeerd");
+  werkStatusBij();
+}
+
+async function sluitMenu() {
+  // Een spatie sluit het menu (zie "(space) Menu Off" in het menu van de regelaar).
+  await term.verstuur(latin1(" \r\n"));
+}
+
+function zetStatus(verbinding, tekst) {
+  toestand.verbinding = verbinding;
+  $("#statusTekst").textContent = tekst;
+  term.melding(tekst);
+  werkStatusBij();
+  const knop = $("#verbind");
+  knop.disabled = verbinding === "bezig";
+  if (verbinding === "verbonden") { knop.textContent = "Verbreken"; knop.className = "btn outline"; }
+  else { knop.textContent = verbinding === "bezig" ? "Bezig…" : "Verbinden"; knop.className = "btn primary"; }
+}
+
+function werkStatusBij() {
+  const v = toestand.verbinding;
+  const sinds = toestand.pakketten && v === "verbonden" ? performance.now() - toestand.laatstePakket : null;
+  // De regelaar stuurt standaard elke 10 s een pakket ("Repetition Rate … default 10sec").
+  const zonderData = sinds !== null && sinds > GEEN_DATA_NA_MS;
+  const menu = v === "verbonden" && toestand.menuOpen;
+  const dot = $("#statusDot");
+  dot.className = "dot " + (v === "verbonden" ? (menu || zonderData || sinds === null ? "waarschuwing" : "ok")
+    : v === "fout" ? "fout" : v === "bezig" ? "waarschuwing" : "");
+  const rechts = $("#statusRechts");
+  rechts.textContent = menu ? "menu open · gepauzeerd"
+    : sinds === null ? (v === "verbonden" ? "wacht op data" : "")
+    : zonderData ? `geen data · ${Math.floor(sinds / 1000)} s` : `live · ${toestand.pakketten}`;
+  rechts.className = "num" + (menu || zonderData ? " waarschuwing" : "");
+  $("#menuBanner").hidden = !menu;
+}
+setInterval(werkStatusBij, 500);
+
+/* ===================================================================== seriële poort
+ * Twee manieren om de USB-serieel adapter aan te spreken:
+ *  - Web Serial (Chrome/Edge op een computer): de browser gebruikt het stuurprogramma van het besturingssysteem.
+ *  - WebUSB (Chrome op Android): de app stuurt de USB-chip zelf aan. Ondersteund: Prolific PL2303
+ *    (o.a. ACT AC6002, ook de nieuwere PL2303G/"HXN") en standaard CDC-ACM-toestellen.
+ */
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const HEEFT_SERIAL = "serial" in navigator;
+const HEEFT_USB = "usb" in navigator;
+const hex4 = n => n.toString(16).padStart(4, "0");
+
+function verbindingsMethode() {
+  const keuze = opslag.lees("methode", "auto");
+  if (keuze === "serial" && HEEFT_SERIAL) return "serial";
+  if (keuze === "usb" && HEEFT_USB) return "usb";
+  // Op Android biedt Web Serial meestal geen USB-adapters aan; WebUSB wel.
+  if (IS_ANDROID && HEEFT_USB) return "usb";
+  if (HEEFT_SERIAL) return "serial";
+  if (HEEFT_USB) return "usb";
+  return null;
+}
+
+/** Web Serial: de browser regelt het stuurprogramma. */
+class WebSerialTransport {
+  constructor(poort) { this.poort = poort; this.lezer = null; this.sluiten = false; }
+  static async kies() { return new WebSerialTransport(await navigator.serial.requestPort()); }
+  get naam() {
+    const i = this.poort.getInfo();
+    return i.usbVendorId ? `USB ${hex4(i.usbVendorId)}:${hex4(i.usbProductId || 0)}` : "Seriële poort";
+  }
+  isVan(e) { return e.target === this.poort; }
+  async open(baud, lijnen) {
+    await this.poort.open({ baudRate: baud, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none", bufferSize: 4096 });
+    await this.zetLijnen(lijnen).catch(() => {});
+  }
+  start(opData, opFout, opEinde) {
+    this.lus = (async () => {
+      while (this.poort.readable && !this.sluiten) {
+        this.lezer = this.poort.readable.getReader();
+        try {
+          for (;;) {
+            const { value, done } = await this.lezer.read();
+            if (done) break;
+            if (value?.length) opData(value);
+          }
+        } catch (e) {
+          if (!this.sluiten) opFout(e); // bv. framing- of pariteitsfout: verder lezen
+        } finally {
+          this.lezer.releaseLock();
+          this.lezer = null;
+        }
+      }
+      if (!this.sluiten) opEinde();
+    })();
+  }
+  async schrijf(bytes) {
+    const w = this.poort.writable.getWriter();
+    try { await w.write(bytes); } finally { w.releaseLock(); }
+  }
+  async zetLijnen({ rts, dtr }) { await this.poort.setSignals({ requestToSend: rts, dataTerminalReady: dtr }); }
+  async leesStatus() {
+    const s = await this.poort.getSignals();
+    return { cts: s.clearToSend, dsr: s.dataSetReady, cd: s.dataCarrierDetect, ri: s.ringIndicator };
+  }
+  async sluit() {
+    this.sluiten = true;
+    try { await this.lezer?.cancel(); } catch {}
+    try { await this.lus; } catch {}
+    try { await this.poort.close(); } catch {}
+  }
+}
+
+/** WebUSB: gemeenschappelijk deel van de stuurprogramma's. */
+class UsbTransport {
+  static FILTERS = [{ vendorId: 0x067b }, { classCode: 0x02 }]; // Prolific PL2303, CDC-ACM
+  constructor(dev) {
+    this.dev = dev; this.sluiten = false;
+    this.status = { cts: false, dsr: false, cd: false, ri: false };
+  }
+  static async kies() {
+    const dev = await navigator.usb.requestDevice({ filters: UsbTransport.FILTERS });
+    return dev.vendorId === 0x067b ? new Pl2303Transport(dev) : new CdcAcmTransport(dev);
+  }
+  get naam() {
+    const d = this.dev;
+    return `${d.manufacturerName || "USB"} – ${d.productName || "serieel"} (${hex4(d.vendorId)}:${hex4(d.productId)})`;
+  }
+  isVan(e) { return e.device === this.dev; }
+  async open(baud, lijnen) {
+    await this.dev.open();
+    if (this.dev.configuration === null) await this.dev.selectConfiguration(1);
+    try {
+      await this.claim();
+    } catch (e) {
+      throw new Error(`USB-interface kan niet worden geclaimd (${e.message}). Sluit andere apps die de adapter gebruiken, bv. de MR96-app of een seriële terminal, en probeer opnieuw.`);
+    }
+    await this.init();
+    await this.zetLijnCodering(baud);
+    await this.zetLijnen(lijnen).catch(() => {});
+  }
+  eindpunten(itf) {
+    const eps = itf.alternate.endpoints;
+    const zoek = (type, richting) => eps.find(e => e.type === type && e.direction === richting)?.endpointNumber;
+    return { bulkIn: zoek("bulk", "in"), bulkUit: zoek("bulk", "out"), interrupt: zoek("interrupt", "in") };
+  }
+  /** CDC-lijncodering: 4 bytes baudrate, 1 stopbit (0), geen pariteit (0), 8 databits. */
+  async zetLijnCodering(baud) {
+    const data = new Uint8Array(7);
+    new DataView(data.buffer).setUint32(0, baud, true);
+    data[4] = 0; data[5] = 0; data[6] = 8;
+    const r = await this.dev.controlTransferOut({ requestType: "class", recipient: "interface", request: 0x20, value: 0, index: this.stuurItf }, data);
+    if (r.status !== "ok") throw new Error("baudrate instellen mislukt (" + r.status + ")");
+  }
+  async zetLijnen({ rts, dtr }) {
+    const r = await this.dev.controlTransferOut({ requestType: "class", recipient: "interface", request: 0x22, value: (dtr ? 1 : 0) | (rts ? 2 : 0), index: this.stuurItf });
+    if (r.status !== "ok") throw new Error("stuurlijnen instellen mislukt (" + r.status + ")");
+  }
+  async leesStatus() { return { ...this.status }; }
+  verwerkStatus() {}
+  start(opData, opFout, opEinde) {
+    this.lus = (async () => {
+      while (!this.sluiten) {
+        try {
+          const r = await this.dev.transferIn(this.ep.bulkIn, 512);
+          if (r.status === "stall") { await this.dev.clearHalt("in", this.ep.bulkIn); continue; }
+          if (r.data?.byteLength) opData(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength).slice());
+        } catch (e) {
+          if (!this.sluiten) opFout(e);
+          break;
+        }
+      }
+      if (!this.sluiten) opEinde();
+    })();
+    if (this.ep.interrupt) {
+      (async () => {
+        while (!this.sluiten) {
+          try {
+            const r = await this.dev.transferIn(this.ep.interrupt, 16);
+            if (r.data?.byteLength) this.verwerkStatus(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength));
+          } catch { break; }
+        }
+      })();
+    }
+  }
+  async schrijf(bytes) {
+    const r = await this.dev.transferOut(this.ep.bulkUit, bytes);
+    if (r.status !== "ok") throw new Error("schrijven mislukt (" + r.status + ")");
+  }
+  async sluit() {
+    this.sluiten = true;
+    try { await this.dev.close(); } catch {}
+    try { await this.lus; } catch {}
+  }
+}
+
+/**
+ * Prolific PL2303 (zelfde aansturing als het Linux-stuurprogramma pl2303.c).
+ * Oudere chips (HX/TA/TB/RA) hebben een vaste initialisatiereeks; de nieuwere PL2303G-reeks
+ * ("HXN", o.a. 067b:23a3) gebruikt andere vendor-verzoeken (0x80/0x81).
+ */
+class Pl2303Transport extends UsbTransport {
+  async claim() {
+    const itf = this.dev.configuration.interfaces[0];
+    await this.dev.claimInterface(itf.interfaceNumber);
+    this.stuurItf = itf.interfaceNumber;
+    this.ep = this.eindpunten(itf);
+  }
+  vLees(value, verzoek = 0x01) {
+    return this.dev.controlTransferIn({ requestType: "vendor", recipient: "device", request: verzoek, value, index: 0 }, 1);
+  }
+  vSchrijf(value, index, verzoek = 0x01) {
+    return this.dev.controlTransferOut({ requestType: "vendor", recipient: "device", request: verzoek, value, index });
+  }
+  async init() {
+    // Type bepalen: oudere chips beantwoorden de "HX-status"-lezing (0x8080), HXN-chips niet.
+    let oud = false;
+    try { oud = (await this.vLees(0x8080)).status === "ok"; } catch { oud = false; }
+    this.hxn = !oud;
+    if (this.hxn) {
+      await this.vSchrijf(0x07, 0x03, 0x80); // upstream- en downstream-pijp resetten
+      // Geen flow control: register 0x0A, bits 0x1C = "geen".
+      const r = await this.vLees(0x0a, 0x81).catch(() => null);
+      const oudReg = r?.status === "ok" ? r.data.getUint8(0) : 0;
+      await this.vSchrijf(0x0a, (oudReg & ~0x1c) | 0x1c, 0x80);
+    } else {
+      for (const [soort, a, b] of [
+        ["l", 0x8484], ["s", 0x0404, 0], ["l", 0x8484], ["l", 0x8383], ["l", 0x8484], ["s", 0x0404, 1],
+        ["l", 0x8484], ["l", 0x8383], ["s", 0, 1], ["s", 1, 0], ["s", 2, 0x44], ["s", 8, 0], ["s", 9, 0],
+      ]) {
+        if (soort === "l") await this.vLees(a).catch(() => {});
+        else await this.vSchrijf(a, b).catch(() => {});
+      }
+    }
+  }
+  verwerkStatus(d) {
+    // Statusbyte op positie 8: 0x01 CD, 0x02 DSR, 0x08 RI, 0x80 CTS.
+    if (d.length < 9) return;
+    const s = d[8];
+    this.status = { cd: !!(s & 0x01), dsr: !!(s & 0x02), ri: !!(s & 0x08), cts: !!(s & 0x80) };
+  }
+}
+
+/** Standaard USB CDC-ACM (o.a. veel moderne adapters en microcontrollers). */
+class CdcAcmTransport extends UsbTransport {
+  async claim() {
+    const itfs = this.dev.configuration.interfaces;
+    const stuur = itfs.find(i => i.alternate.interfaceClass === 0x02);
+    const data = itfs.find(i => i.alternate.interfaceClass === 0x0a);
+    if (!data) throw new Error("geen CDC-data-interface gevonden");
+    if (stuur) await this.dev.claimInterface(stuur.interfaceNumber);
+    await this.dev.claimInterface(data.interfaceNumber);
+    this.stuurItf = (stuur || data).interfaceNumber;
+    this.ep = { ...this.eindpunten(data), interrupt: stuur ? this.eindpunten(stuur).interrupt : undefined };
+  }
+  async init() {}
+  verwerkStatus(d) {
+    // SERIAL_STATE-melding (0x20): bit 0 CD, bit 1 DSR, bit 3 RI. CTS bestaat niet in CDC.
+    if (d.length < 10 || d[1] !== 0x20) return;
+    const s = d[8];
+    this.status = { ...this.status, cd: !!(s & 0x01), dsr: !!(s & 0x02), ri: !!(s & 0x08) };
+  }
+}
+
+const serieel = {
+  transport: null,
+  rts: true, dtr: true,
+  get verbonden() { return !!this.transport; },
+
+  async verbind(bestaand) {
+    let t = bestaand;
+    if (!t) {
+      const methode = verbindingsMethode();
+      if (!methode) return;
+      try {
+        t = methode === "usb" ? await UsbTransport.kies() : await WebSerialTransport.kies();
+      } catch (e) {
+        if (e.name !== "NotFoundError" && e.name !== "AbortError") zetStatus("fout", "Geen adapter gekozen: " + e.message);
+        return; // gebruiker sloot de keuzelijst
+      }
+    }
+    zetStatus("bezig", "Poort openen…");
+    try {
+      // Standaard zoals het origineel: DTR en RTS aan (aanpasbaar in de terminal).
+      await t.open(toestand.baudrate, { rts: this.rts, dtr: this.dtr });
+    } catch (e) {
+      try { await t.sluit(); } catch {}
+      zetStatus("fout", "Fout bij het openen van de poort: " + e.message);
+      return;
+    }
+    this.transport = t;
+    ontvanger.wis();
+    toestand.pakketten = 0;
+    toestand.menuOpen = false;
+    menuDetector.buf = "";
+    zetStatus("verbonden", `${t.naam} · ${toestand.baudrate} baud`);
+    t.start(
+      ontvangBytes,
+      e => term.fout("Leesfout: " + e.message),
+      async () => { if (this.transport === t) { await this.sluit(); zetStatus("fout", "Verbinding verbroken"); } },
+    );
+  },
+
+  async sluit() {
+    const t = this.transport;
+    this.transport = null;
+    if (t) await t.sluit();
+    return t;
+  },
+
+  async schrijf(bytes) {
+    if (!this.transport) throw new Error("niet verbonden");
+    await this.transport.schrijf(bytes);
+  },
+
+  async zetLijn(naam, aan) {
+    if (!this.transport) throw new Error("niet verbonden");
+    const nieuw = { rts: naam === "RTS" ? aan : this.rts, dtr: naam === "DTR" ? aan : this.dtr };
+    await this.transport.zetLijnen(nieuw);
+    this.rts = nieuw.rts; this.dtr = nieuw.dtr;
+  },
+
+  async leesLijnen() {
+    if (!this.transport) return null;
+    const l = new Set();
+    if (this.rts) l.add("RTS");
+    if (this.dtr) l.add("DTR");
+    try {
+      const s = await this.transport.leesStatus();
+      if (s.cts) l.add("CTS");
+      if (s.dsr) l.add("DSR");
+      if (s.cd) l.add("CD");
+      if (s.ri) l.add("RI");
+    } catch {}
+    return l;
+  },
+};
+
+function ontvangBytes(value) {
+  menuDetector.voeg(value);
+  ontvanger.voeg(value);
+  term.ontvangen(value);
+}
+
+/* ===================================================================== terminal */
+const EINDES = [["", "Geen"], ["\r", "CR"], ["\n", "LF"], ["\r\n", "CR+LF"]];
+const LIJNEN = ["RTS", "DTR", "CTS", "DSR", "CD", "RI"];
+const MAX_REGELS = 2000;
+
+const term = {
+  log: null, onafEl: null, onaf: "", onafSinds: 0, regels: [], wachtrij: [],
+  gepauzeerd: false, hex: opslag.lees("hexWeergave", false), verberg: opslag.lees("pakkettenVerbergen", true),
+  hexInvoer: opslag.lees("hexInvoer", false), einde: opslag.lees("einde", 3),
+  rx: 0, tx: 0, bevestigd: false, filter: new PakketFilter(),
+  macros: (() => {
+    const m = opslag.lees("macros", []);
+    return Array.from({ length: 10 }, (_, i) => Object.assign({ naam: `M${i + 1}`, waarde: "", hex: false, einde: 3 }, m[i] || {}));
+  })(),
+  tijd: t => { const d = new Date(t); return d.toTimeString().slice(0, 8) + "." + String(d.getMilliseconds()).padStart(3, "0"); },
+
+  ontvangen(data) {
+    this.rx += data.length;
+    const zichtbaar = this.verberg ? this.filter.filter(data) : data;
+    if (zichtbaar.length) {
+      if (this.hex) this.voeg("rx", naarHex(zichtbaar));
+      else {
+        if (!this.onaf) this.onafSinds = Date.now();
+        for (const c of zichtbaar) {
+          if (c === 0x0D || c === 0x0A) {
+            if (this.onaf) { const r = this.onaf; this.onaf = ""; this.voeg("rx", r, this.onafSinds); this.onafSinds = Date.now(); }
+          } else this.onaf += teken(c);
+        }
+        this.tekenOnaf();
+      }
+    }
+    this.werkTellerBij();
+  },
+  melding(t) { this.voeg("melding", t); },
+  fout(t) { this.voeg("fout", t); },
+
+  sluitOnaf() {
+    if (this.onaf) { const r = this.onaf; this.onaf = ""; this.voeg("rx", r, this.onafSinds); }
+    this.tekenOnaf();
+  },
+  voeg(soort, tekst, tijd = Date.now()) {
+    if (soort !== "rx") this.sluitOnaf();
+    const r = { soort, tekst, tijd };
+    this.regels.push(r);
+    if (this.regels.length > MAX_REGELS) this.regels.splice(0, this.regels.length - MAX_REGELS);
+    if (this.gepauzeerd) { this.wachtrij.push(r); return; }
+    this.teken([r]);
+    this.werkTellerBij();
+  },
+
+  regelEl(r) {
+    const d = el("div", { class: r.soort === "rx" ? "" : r.soort }, el("span", { class: "t" }, this.tijd(r.tijd) + "  "), r.tekst);
+    return d;
+  },
+  teken(nieuw) {
+    if (!this.log) return;
+    const onder = this.opBodem();
+    this.log.querySelector(".leeg-log")?.remove();
+    const frag = document.createDocumentFragment();
+    for (const r of nieuw) frag.append(this.regelEl(r));
+    this.log.insertBefore(frag, this.onafEl);
+    let teveel = this.log.childElementCount - 1 - MAX_REGELS;
+    while (teveel-- > 0) this.log.firstElementChild.remove();
+    if (onder) this.naarOnder();
+  },
+  tekenOnaf() {
+    if (!this.onafEl || this.gepauzeerd) return;
+    const onder = this.opBodem();
+    if (this.onaf) {
+      this.log.querySelector(".leeg-log")?.remove();
+      this.onafEl.replaceChildren(el("span", { class: "t" }, this.tijd(this.onafSinds) + "  "), this.onaf);
+    } else this.onafEl.replaceChildren();
+    if (onder) this.naarOnder();
+  },
+  opBodem() { return this.log.scrollHeight - this.log.scrollTop - this.log.clientHeight < 24; },
+  naarOnder() { this.log.scrollTop = this.log.scrollHeight; $("#naarOnder").hidden = true; },
+  werkTellerBij() {
+    const t = $("#termTeller");
+    if (t) t.textContent = `RX ${this.rx} B · TX ${this.tx} B · ${this.regels.length} regels`;
+  },
+
+  wis() {
+    this.regels = []; this.wachtrij = []; this.onaf = ""; this.filter.wis(); this.rx = 0; this.tx = 0;
+    this.log.replaceChildren(el("div", { class: "leeg-log" }, "Nog geen gegevens ontvangen"), this.onafEl);
+    this.onafEl.replaceChildren();
+    this.werkTellerBij();
+  },
+  alsTekst() {
+    this.sluitOnaf();
+    return this.regels.map(r => `${this.tijd(r.tijd)} ${r.soort.toUpperCase().padEnd(7)} ${r.tekst}`).join("\n");
+  },
+
+  maakBytes(tekst, hex, einde) {
+    if (hex) return vanHex(tekst);
+    const b = latin1(tekst + EINDES[einde][0]);
+    return b.length ? b : null;
+  },
+  metBevestiging(actie) {
+    if (this.bevestigd) return actie();
+    const dlg = $("#bevestigDlg");
+    $("#bevestigJa").onclick = () => { this.bevestigd = true; dlg.close(); actie(); };
+    $("#bevestigNee").onclick = () => dlg.close();
+    dlg.showModal();
+  },
+  async verstuur(bytes) {
+    try {
+      await serieel.schrijf(bytes);
+      this.tx += bytes.length;
+      this.voeg("tx", this.hex ? naarHex(bytes) : naarAscii(bytes));
+    } catch (e) {
+      this.fout("Niet verzonden: " + e.message);
+    }
+  },
+};
+
+function bouwTerminal() {
+  const tab = $("#tab-terminal");
+
+  const lijnChips = el("div", { class: "chips", id: "lijnen" });
+  const lijnKnoppen = {};
+  for (const naam of LIJNEN) {
+    const schakel = naam === "RTS" || naam === "DTR";
+    const c = el("button", { class: "chip" + (schakel ? "" : " indicator"), type: "button", disabled: schakel ? null : true }, naam);
+    if (schakel) {
+      c.setAttribute("aria-pressed", "false");
+      c.addEventListener("click", async () => {
+        const nu = await serieel.leesLijnen();
+        if (!nu) { term.fout("Niet verbonden"); return; }
+        const nieuw = !nu.has(naam);
+        try { await serieel.zetLijn(naam, nieuw); term.melding(`${naam} ${nieuw ? "aan" : "uit"}`); }
+        catch (e) { term.fout(`${naam} niet gewijzigd: ${e.message}`); }
+        peilLijnen();
+      });
+    }
+    lijnKnoppen[naam] = c;
+    lijnChips.append(c);
+  }
+  // Verbindingswijze (werkt bij de volgende keer verbinden).
+  const methode = el("select", { class: "chip", "aria-label": "Verbindingswijze", title: "Hoe de adapter aangesproken wordt" },
+    el("option", { value: "auto" }, "Via: automatisch"),
+    HEEFT_SERIAL ? el("option", { value: "serial" }, "Via: Web Serial") : null,
+    HEEFT_USB ? el("option", { value: "usb" }, "Via: USB (WebUSB)") : null);
+  methode.value = opslag.lees("methode", "auto");
+  if (!methode.value) methode.value = "auto";
+  methode.addEventListener("change", () => {
+    opslag.schrijf("methode", methode.value);
+    term.melding(`Verbindingswijze: ${methode.selectedOptions[0].textContent.replace("Via: ", "")}` +
+      (serieel.verbonden ? " (geldt bij de volgende verbinding)" : ""));
+  });
+  lijnChips.append(methode);
+  tab.append(lijnChips);
+
+  async function peilLijnen() {
+    const l = await serieel.leesLijnen();
+    for (const [naam, c] of Object.entries(lijnKnoppen)) {
+      const aan = !!l?.has(naam);
+      if (naam === "RTS" || naam === "DTR") { c.setAttribute("aria-pressed", String(aan)); c.disabled = !l; }
+      else c.classList.toggle("aan", aan);
+    }
+  }
+  setInterval(() => { if (!tab.hidden) peilLijnen(); }, 500);
+  peilLijnen();
+
+  const knop = (label, actief, opKlik) => {
+    const c = el("button", { class: "chip", type: "button", "aria-pressed": String(actief) }, label);
+    c.addEventListener("click", () => c.setAttribute("aria-pressed", String(opKlik())));
+    return c;
+  };
+  const actieKnop = (label, pad, opKlik) => el("button", { class: "chip", type: "button", onclick: opKlik }, icoon(pad), label);
+  tab.append(el("div", { class: "chips" },
+    knop("Pauze", false, () => {
+      term.gepauzeerd = !term.gepauzeerd;
+      if (!term.gepauzeerd) { const w = term.wachtrij; term.wachtrij = []; term.teken(w); term.tekenOnaf(); term.werkTellerBij(); }
+      return term.gepauzeerd;
+    }),
+    knop("HEX", term.hex, () => { term.sluitOnaf(); term.hex = !term.hex; opslag.schrijf("hexWeergave", term.hex); return term.hex; }),
+    knop("Datapakketten verbergen", term.verberg, () => { term.verberg = !term.verberg; term.filter.wis(); opslag.schrijf("pakkettenVerbergen", term.verberg); return term.verberg; }),
+    actieKnop("Wis", ICOON.wis, () => term.wis()),
+    actieKnop("Opslaan", ICOON.bewaar, () => bewaarLog()),
+    navigator.share ? actieKnop("Delen", ICOON.deel, () => deelLog()) : null,
+  ));
+  tab.append(el("div", { class: "teller num", id: "termTeller" }));
+
+  term.log = el("div", { class: "log", role: "log", "aria-live": "off", tabindex: "0" },
+    el("div", { class: "leeg-log" }, "Nog geen gegevens ontvangen"));
+  term.onafEl = el("div");
+  term.log.append(term.onafEl);
+  const naarOnder = el("button", { class: "naar-onder", id: "naarOnder", type: "button", "aria-label": "Naar onder", hidden: true }, icoon(ICOON.omlaag));
+  naarOnder.addEventListener("click", () => term.naarOnder());
+  term.log.addEventListener("scroll", () => { naarOnder.hidden = term.opBodem(); });
+  tab.append(el("div", { class: "log-wrap" }, term.log, naarOnder));
+
+  const macros = el("div", { class: "macros" });
+  const macroKnoppen = term.macros.map((m, i) => {
+    const b = el("button", { class: "macro", type: "button", title: "Klik: versturen · rechtsklik of lang drukken: bewerken" }, m.naam);
+    let lang = null, langGedrukt = false;
+    b.addEventListener("pointerdown", () => { langGedrukt = false; lang = setTimeout(() => { langGedrukt = true; bewerkMacro(i); }, 550); });
+    for (const ev of ["pointerup", "pointerleave", "pointercancel"]) b.addEventListener(ev, () => clearTimeout(lang));
+    b.addEventListener("contextmenu", e => { e.preventDefault(); clearTimeout(lang); if (!langGedrukt) bewerkMacro(i); langGedrukt = true; });
+    b.addEventListener("click", () => {
+      if (langGedrukt) { langGedrukt = false; return; }
+      const mac = term.macros[i];
+      if (!mac.waarde) return bewerkMacro(i);
+      const bytes = term.maakBytes(mac.waarde, mac.hex, mac.einde);
+      if (!bytes) return term.fout(`Macro ${mac.naam} heeft een ongeldige waarde`);
+      term.metBevestiging(() => term.verstuur(bytes));
+    });
+    macros.append(b);
+    return b;
+  });
+  const tekenMacros = () => term.macros.forEach((m, i) => { macroKnoppen[i].textContent = m.naam; macroKnoppen[i].classList.toggle("gevuld", !!m.waarde); });
+  tekenMacros();
+  tab.append(macros);
+
+  // Invoer
+  const veld = el("input", { class: "veld", type: "text", autocomplete: "off", spellcheck: "false", enterkeyhint: "send", "aria-label": "Commando" });
+  const fout = el("div", { class: "foutmelding" });
+  const modusTekst = el("button", { class: "chip", type: "button" }, "Tekst");
+  const modusHex = el("button", { class: "chip", type: "button" }, "HEX");
+  const einde = el("select", { class: "chip", "aria-label": "Regeleinde" }, ...EINDES.map(([, l], i) => el("option", { value: i }, "Einde: " + l)));
+  einde.value = term.einde;
+  einde.addEventListener("change", () => { term.einde = +einde.value; opslag.schrijf("einde", term.einde); });
+  const zetModus = hex => {
+    term.hexInvoer = hex; opslag.schrijf("hexInvoer", hex);
+    modusTekst.setAttribute("aria-pressed", String(!hex));
+    modusHex.setAttribute("aria-pressed", String(hex));
+    einde.disabled = hex;
+    veld.placeholder = hex ? "Hex, bv. 1B 4D 0D" : "Commando";
+  };
+  modusTekst.addEventListener("click", () => zetModus(false));
+  modusHex.addEventListener("click", () => zetModus(true));
+  zetModus(term.hexInvoer);
+
+  const verzend = () => {
+    const bytes = term.maakBytes(veld.value, term.hexInvoer, term.einde);
+    if (!bytes) {
+      fout.textContent = term.hexInvoer ? "Ongeldige hex (gebruik paren zoals 1B 4D)" : "Leeg";
+      veld.classList.add("fout");
+      return;
+    }
+    term.metBevestiging(() => { term.verstuur(bytes); veld.value = ""; });
+  };
+  veld.addEventListener("input", () => { fout.textContent = ""; veld.classList.remove("fout"); });
+  veld.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); verzend(); } });
+  const zend = el("button", { class: "verzend", type: "button", "aria-label": "Verzenden", onclick: verzend }, icoon(ICOON.zend));
+
+  tab.append(el("div", { class: "invoer" },
+    el("div", { class: "chips" }, modusTekst, modusHex, einde),
+    el("div", { class: "invoer-rij" }, veld, zend),
+    fout));
+
+  // Macro bewerken
+  function bewerkMacro(i) {
+    const m = term.macros[i];
+    const dlg = $("#macroDlg");
+    const naam = $("#macroNaam"), waarde = $("#macroWaarde"), hex = $("#macroHex"), eindeChips = $("#macroEinde");
+    $("#macroTitel").textContent = `Macro M${i + 1}`;
+    naam.value = m.naam; waarde.value = m.waarde; hex.checked = m.hex;
+    let gekozen = m.einde;
+    eindeChips.replaceChildren(...EINDES.map(([, l], j) => {
+      const c = el("button", { class: "chip", type: "button", "aria-pressed": String(j === gekozen) }, l);
+      c.addEventListener("click", () => { gekozen = j; [...eindeChips.children].forEach((x, k) => x.setAttribute("aria-pressed", String(k === j))); });
+      return c;
+    }));
+    const controleer = () => {
+      const ongeldig = waarde.value !== "" && !term.maakBytes(waarde.value, hex.checked, gekozen);
+      waarde.classList.toggle("fout", ongeldig);
+      $("#macroWaardeLabel").textContent = ongeldig ? "Ongeldige hex-waarde" : "Waarde";
+      $("#macroOpslaan").disabled = ongeldig;
+      $("#macroEindeBlok").hidden = hex.checked;
+    };
+    waarde.oninput = controleer; hex.onchange = controleer;
+    controleer();
+    $("#macroAnnuleer").onclick = () => dlg.close();
+    $("#macroOpslaan").onclick = () => {
+      term.macros[i] = { naam: naam.value.trim() || `M${i + 1}`, waarde: waarde.value, hex: hex.checked, einde: gekozen };
+      opslag.schrijf("macros", term.macros);
+      tekenMacros();
+      dlg.close();
+    };
+    dlg.showModal();
+  }
+  term.werkTellerBij();
+}
+
+function bewaarLog() {
+  const tekst = term.alsTekst();
+  if (!tekst) return term.melding("Log is leeg");
+  const d = new Date();
+  const naam = `mr96-log-${d.toISOString().slice(0, 19).replace(/[T:]/g, "-")}.txt`;
+  const a = el("a", { href: URL.createObjectURL(new Blob([tekst], { type: "text/plain;charset=utf-8" })), download: naam });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function deelLog() {
+  const tekst = term.alsTekst();
+  if (!tekst) return term.melding("Log is leeg");
+  try { await navigator.share({ title: "MR96 HVAC seriële log", text: tekst }); } catch {}
+}
+
+/* ===================================================================== navigatie */
+function toonTab(naam) {
+  for (const b of document.querySelectorAll(".nav button")) b.setAttribute("aria-selected", String(b.dataset.tab === naam));
+  for (const t of ["overzicht", "signalen", "terminal"]) $("#tab-" + t).hidden = t !== naam;
+  $("main").style.overflow = naam === "terminal" ? "hidden" : "auto";
+  if (naam === "signalen") filterSignalen();
+  if (naam === "terminal") term.naarOnder();
+  if (location.hash !== "#" + naam) history.replaceState(null, "", "#" + naam);
+}
+
+/* ===================================================================== start */
+function start() {
+  bouwOverzicht();
+  bouwSignalen();
+  bouwTerminal();
+
+  const baud = $("#baud");
+  for (const b of BAUDRATES) baud.append(el("option", { value: b }, b === BAUDRATE_MR96 ? `${b} baud ★` : `${b} baud`));
+  baud.title = `Baudrate · ★ = standaard van de MR96-regelaar (${BAUDRATE_MR96})`;
+  baud.value = toestand.baudrate;
+  baud.addEventListener("change", async () => {
+    toestand.baudrate = +baud.value;
+    opslag.schrijf("baudrate", toestand.baudrate);
+    if (serieel.verbonden) { // poort opnieuw openen met de nieuwe snelheid
+      const t = await serieel.sluit();
+      term.melding(`Baudrate gewijzigd naar ${toestand.baudrate}`);
+      serieel.verbind(t);
+    }
+  });
+
+  $("#menuSluiten").addEventListener("click", sluitMenu);
+
+  $("#verbind").addEventListener("click", async () => {
+    if (serieel.verbonden) { await serieel.sluit(); zetStatus("niet", "Niet verbonden"); }
+    else serieel.verbind();
+  });
+
+  for (const b of document.querySelectorAll(".nav button")) b.addEventListener("click", () => toonTab(b.dataset.tab));
+  const hash = location.hash.slice(1);
+  toonTab(["overzicht", "signalen", "terminal"].includes(hash) ? hash : "overzicht");
+
+  if (!HEEFT_SERIAL && !HEEFT_USB) {
+    $(window.isSecureContext ? "#nietOndersteund" : "#nietVeilig").hidden = false;
+    $("#verbind").disabled = true;
+  }
+  const losgekoppeld = async e => {
+    if (serieel.transport?.isVan(e)) { await serieel.sluit(); zetStatus("fout", "Kabel losgekoppeld"); }
+  };
+  if (HEEFT_SERIAL) navigator.serial.addEventListener("disconnect", losgekoppeld);
+  if (HEEFT_USB) navigator.usb.addEventListener("disconnect", losgekoppeld);
+  startPwa();
+  planTekenen();
+}
+
+/* ===================================================================== installeerbare app (PWA) */
+function startPwa() {
+  // Offline gebruik: de service worker bewaart de app op het toestel (niet mogelijk vanuit een lokaal bestand).
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("sw.js").catch(e => console.warn("Service worker niet geregistreerd:", e));
+  }
+  let uitnodiging = null;
+  const banner = $("#installeerBanner");
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault(); // eigen knop tonen in plaats van de standaardmelding van de browser
+    uitnodiging = e;
+    banner.hidden = opslag.lees("installeerLater", false);
+  });
+  $("#installeer").addEventListener("click", async () => {
+    banner.hidden = true;
+    if (!uitnodiging) return;
+    uitnodiging.prompt();
+    await uitnodiging.userChoice.catch(() => {});
+    uitnodiging = null;
+  });
+  $("#installeerLater").addEventListener("click", () => { banner.hidden = true; opslag.schrijf("installeerLater", true); });
+  window.addEventListener("appinstalled", () => { banner.hidden = true; uitnodiging = null; });
+}
+
+/* Testhaak (geen knop): laat toe bytes te injecteren vanuit de console, bv. bij het controleren van de layout. */
+window.mr96 = { ontvang: b => ontvangBytes(Uint8Array.from(b)), decodeer, vanHex, toonTab, zetStatus };
+
+start();
+</script>
+</body>
+</html>
